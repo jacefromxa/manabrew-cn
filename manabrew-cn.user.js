@@ -3,7 +3,7 @@
 // @name:zh-CN   Manabrew 简体中文卡牌浮窗
 // @name:en      Manabrew Simplified Chinese Card Tooltip
 // @namespace    https://play.manabrew.app/
-// @version      0.9.0
+// @version      0.9.1
 // @description  在 Manabrew 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。
 // @description:zh-CN 在 Manabrew 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
 // @description:en Show Simplified Chinese card info on hover for Manabrew — name, type, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
@@ -43,7 +43,10 @@
 
   var DATA_BASE = 'https://raw.githubusercontent.com/jacefromxa/manabrew-cn/main/dist';
   var MANA_CSS_URL = 'https://cdn.jsdelivr.net/npm/mana-font@1.18.0/css/mana.css';
-  var API_CACHE_PREFIX = 'mbrw-api-';
+  // v0.9.1: bumped from mbrw-api- to invalidate any cached entries that stored
+  // a wrong card's name under a fuzzy /result hit (e.g. reanimate → 复生的九头蛇
+  // 夫人). Users re-fetch only the handful of API-only cards they hover.
+  var API_CACHE_PREFIX = 'mbrw-api2-';
 
   // --- Settings -----------------------------------------------------------
 
@@ -339,26 +342,40 @@
       fetch('https://mtgch.com/api/v1/card-names/?q=' + enc + '&size=1')
         .then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
         .then(function (d) {
+          // /card-names is a clean name lookup — its top hit is the card we want.
           var zhName = ((d.items || [])[0] || {}).translated_name || null;
-          return fetch('https://mtgch.com/api/v1/result?q=%22' + enc + '%22&unique=oracle_id&page_size=1')
+          // /result is fuzzy AND paginated: with page_size=1 the first page can
+          // be a different card (e.g. "reanimate" → "Madame Hydra, Reanimated"
+          // while the real Reanimate sits on a later page). Ask for a large page
+          // and scan every item for an exact English-name match. A non-matching
+          // card's name/text/cost must never leak into the tooltip — this was
+          // why hovering Reanimate showed 复生的九头蛇夫人 (wrong card).
+          return fetch('https://mtgch.com/api/v1/result?q=%22' + enc + '%22&unique=oracle_id&page_size=20')
             .then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
             .then(function (sd) {
-              var item = (sd.items || [])[0] || {};
-              // The mtgch /result search is fuzzy and can surface the wrong card
-              // (e.g. "tarmogoyf" → "Tarmogoyf Nest", "lightning bolt" → a MDFC
-              // front face). Only trust its translations when the English name
-              // matches exactly; otherwise return the name alone and skip text,
-              // rather than showing a wrong card's oracle text.
-              var matchedEn = ((item.name || '').toLowerCase().trim() === name.toLowerCase().trim());
+              var nameLower = name.toLowerCase().trim();
+              var items = sd.items || [];
+              var exact = null;
+              for (var i = 0; i < items.length; i++) {
+                if (items[i] && String(items[i].name || '').toLowerCase().trim() === nameLower) {
+                  exact = items[i];
+                  break;
+                }
+              }
+              if (!exact) {
+                // No exact card among the fuzzy results — show the name alone
+                // rather than a different card's oracle text.
+                return { n: zhName || name, _src: 'api' };
+              }
               return {
-                n: item.atomic_translated_name || item.zhs_name || zhName || name,
-                t: matchedEn ? (item.atomic_translated_text || item.zhs_text || undefined) : undefined,
-                y: matchedEn ? (item.atomic_translated_type || item.zhs_type_line || undefined) : undefined,
-                c: matchedEn ? (item.mana_cost || undefined) : undefined,
-                p: matchedEn ? (item.power || undefined) : undefined,
-                q: matchedEn ? (item.toughness || undefined) : undefined,
-                l: matchedEn ? (item.loyalty || undefined) : undefined,
-                d: matchedEn ? (item.defense || undefined) : undefined,
+                n: exact.atomic_translated_name || exact.zhs_name || zhName || name,
+                t: exact.atomic_translated_text || exact.zhs_text || undefined,
+                y: exact.atomic_translated_type || exact.zhs_type_line || undefined,
+                c: exact.mana_cost || undefined,
+                p: exact.power || undefined,
+                q: exact.toughness || undefined,
+                l: exact.loyalty || undefined,
+                d: exact.defense || undefined,
                 _src: 'api'
               };
             });
@@ -384,11 +401,8 @@
     var key = cardName.trim().toLowerCase();
     if (!key || key === 'face-down card') return Promise.resolve(null);
 
-    // 1. mtgch cache (fastest)
-    var cached = apiCache.get(key);
-    if (cached) return Promise.resolve(cached);
-
-    // 2. Local DB (if loaded)
+    // 1. Local DB (curated, authoritative — checked first so a stale / wrongly
+    //    cached mtgch entry can never shadow a correct DB entry)
     if (zhDB) {
       var local = zhDB.get(key);
       if (local) {
@@ -396,6 +410,10 @@
         return Promise.resolve(r);
       }
     }
+
+    // 2. mtgch cache (fastest for cards not in the DB)
+    var cached = apiCache.get(key);
+    if (cached) return Promise.resolve(cached);
 
     // 3. DB still loading — wait, but don't block forever
     if (!dbLoadDone && dbLoadPromise) {
@@ -1634,7 +1652,7 @@
     startFiberPolling();
 
     updateMenuToggles();
-    LOG('v0.9.0 ready — expandable styles, single fixed-mode switch, local cards auto-fill cost/P/T');
+    LOG('v0.9.1 ready — exact-match API lookup (no wrong-card name leak) + DB-first lookup');
   }
 
   if (document.readyState === 'loading') {
