@@ -3,7 +3,7 @@
 // @name:zh-CN   Manabrew 简体中文卡牌浮窗
 // @name:en      Manabrew Simplified Chinese Card Tooltip
 // @namespace    https://play.manabrew.app/
-// @version      0.2.2
+// @version      0.3.0
 // @description  在 Manabrew 悬停 MTG 卡牌时显示简体中文翻译浮窗
 // @description:zh-CN 在 Manabrew 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本。
 // @description:en Show Simplified Chinese card info on hover for Manabrew — card name, type, and rules text.
@@ -471,11 +471,24 @@
     panel.style.visibility = 'hidden';
     currentAnchor = null;
     currentCardName = null;
+    panelOwner = null;
+  }
+
+  function getAnchorRect(anchor) {
+    if (!anchor) return null;
+    if (typeof anchor.getBoundingClientRect === 'function') return anchor.getBoundingClientRect();
+    // DOMRect-like or {left, top, width, height} (hand-card bounds / mouse point)
+    if (typeof anchor.left === 'number' && typeof anchor.top === 'number') {
+      var w = anchor.width || 1;
+      var h = anchor.height || 1;
+      return { left: anchor.left, top: anchor.top, right: anchor.left + w, bottom: anchor.top + h, width: w, height: h };
+    }
+    return null;
   }
 
   function positionPanel(anchorEl) {
-    if (typeof anchorEl.getBoundingClientRect !== 'function') return;
-    var r = anchorEl.getBoundingClientRect();
+    var r = getAnchorRect(anchorEl);
+    if (!r) return;
     var ps = { width: panel.offsetWidth || 300, height: panel.offsetHeight || 100 };
     var pos = calculatePanelPosition(r, ps, getViewport());
     panel.style.left = pos.left + 'px';
@@ -549,6 +562,7 @@
     var serial = currentSerial;
     currentAnchor = anchorEl;
     currentCardName = cardName;
+    panelOwner = 'dom';
     LOG('Lookup:', cardName);
 
     lookupCard(cardName).then(function (result) {
@@ -629,6 +643,7 @@
     // hide if no new preview replaces it within a short window.
     clearTimeout(hideTimer);
     hideTimer = setTimeout(function () {
+      if (panelOwner === 'fiber') return; // the fiber scanner owns the tooltip now
       hidePanel();
     }, 200);
   }
@@ -661,6 +676,224 @@
     var img = findCardInDOM(e.target);
     if (!img) return;
     hidePanel();
+  }
+
+  // --- React fiber introspection: hand + battlefield-stack hover ------------
+  // Battlefield cards surface through the [data-card-preview] portal. Hand cards
+  // (HandController) and battlefield-stack cards (StackLayer) never render that
+  // portal, but manabrew still tracks them in React state: the useCardPreview
+  // machine snapshot holds hand cards (zoneId "hand", skipped by Game.tsx's
+  // render) and useStackUIStore holds the hovered stack object id. We read those
+  // by walking the React fiber tree. Best-effort: if the fiber layout changes in
+  // a future build these two tooltips silently stop while the DOM paths keep
+  // working.
+
+  var lastMouse = { x: 0, y: 0 };
+  var panelOwner = null; // 'dom' = MutationObserver / pointerover, 'fiber' = this scanner
+  var FIBER_SCAN_MS = 150;
+  var cachedGameViewNode = null;
+  var lastGvScan = 0;
+  var lastGvRescan = 0;
+
+  function getFiberFromNode(el) {
+    if (!el) return null;
+    var keys = Object.keys(el);
+    for (var i = 0; i < keys.length; i++) {
+      var k = keys[i];
+      if (k.indexOf('__reactFiber$') === 0 || k.indexOf('__reactInternalInstance$') === 0) {
+        return el[k];
+      }
+    }
+    return null;
+  }
+
+  function getFiberRoot() {
+    var rootEl = document.querySelector('#root');
+    if (!rootEl || !rootEl.firstElementChild) rootEl = document.body;
+    var f = getFiberFromNode(rootEl) || getFiberFromNode(rootEl.firstElementChild);
+    var guard = 0;
+    while (f && f.return && guard++ < 2000) f = f.return;
+    return f;
+  }
+
+  function walkFibers(root, visit, budget) {
+    if (!root) return false;
+    var stack = [root];
+    var count = 0;
+    var limit = budget || 150000;
+    while (stack.length && count < limit) {
+      var f = stack.pop();
+      count++;
+      if (visit(f) === true) return true;
+      if (f.sibling) stack.push(f.sibling);
+      if (f.child) stack.push(f.child);
+    }
+    return false;
+  }
+
+  function hookCandidates(hook) {
+    var v = hook && hook.memoizedState;
+    if (v == null) return [];
+    var out = [v];
+    // useState → [value, dispatch]; unwrap the value
+    if (Array.isArray(v) && v.length >= 2 && typeof v[1] === 'function') out.push(v[0]);
+    // useRef → { current }; unwrap for good measure
+    if (v && typeof v === 'object' && typeof v.current === 'object') out.push(v.current);
+    return out;
+  }
+
+  function isPreviewSnapshot(v) {
+    return !!v && typeof v === 'object' && typeof v.phase === 'string' &&
+      'card' in v && !!v.mousePos && typeof v.mousePos.x === 'number' &&
+      'anchorRect' in v && 'placement' in v;
+  }
+
+  function isGameView(v) {
+    return !!v && typeof v === 'object' &&
+      Array.isArray(v.players) && Array.isArray(v.stack) && Array.isArray(v.battlefield);
+  }
+
+  function getGameView() {
+    var now = Date.now();
+    // Re-anchor the cache to the current tree every 5s: a game→menu→game cycle
+    // remounts the Game component with a fresh fiber, orphaning our cached hook.
+    // Without this, the orphaned hook keeps serving the previous game's view and
+    // stack tooltips silently stop matching in the new game.
+    if (cachedGameViewNode && now - lastGvRescan > 5000) {
+      cachedGameViewNode = null;
+      lastGvRescan = now;
+      lastGvScan = 0; // bypass the 2s backoff so the re-anchor walk runs now
+    }
+    if (cachedGameViewNode) {
+      var c0 = hookCandidates(cachedGameViewNode);
+      for (var i0 = 0; i0 < c0.length; i0++) if (isGameView(c0[i0])) return c0[i0];
+      cachedGameViewNode = null; // hook chain changed shape — rescan
+    }
+    if (now - lastGvScan < 2000) return null; // back off rescans while not in a game
+    lastGvScan = now;
+    lastGvRescan = now; // any walk refreshes the re-anchor clock
+    var root = getFiberRoot();
+    if (!root) return null;
+    walkFibers(root, function (f) {
+      var h = f.memoizedState, d = 0;
+      while (h && d < 80) {
+        var c = hookCandidates(h);
+        for (var j = 0; j < c.length; j++) {
+          if (isGameView(c[j])) { cachedGameViewNode = h; return true; }
+        }
+        h = h.next; d++;
+      }
+      return false;
+    });
+    if (cachedGameViewNode) {
+      var c1 = hookCandidates(cachedGameViewNode);
+      for (var i1 = 0; i1 < c1.length; i1++) if (isGameView(c1[i1])) return c1[i1];
+    }
+    return null;
+  }
+
+  // Single walk: find a hovered hand card (preview snapshot) or a hovered stack
+  // object id (a hook string matching gameView.stack ids), whichever comes first.
+  function scanFiberHover(gameView) {
+    var ids = null;
+    if (gameView && Array.isArray(gameView.stack) && gameView.stack.length) {
+      ids = new Set();
+      for (var i = 0; i < gameView.stack.length; i++) {
+        if (gameView.stack[i] && gameView.stack[i].id) ids.add(gameView.stack[i].id);
+      }
+    }
+    var root = getFiberRoot();
+    if (!root) return null;
+    var result = null;
+    walkFibers(root, function (f) {
+      var h = f.memoizedState, d = 0;
+      while (h && d < 80) {
+        var c = hookCandidates(h);
+        for (var j = 0; j < c.length; j++) {
+          var v = c[j];
+          if (isPreviewSnapshot(v) && v.card && v.card.zoneId === 'hand') {
+            result = { hand: v };
+            return true;
+          }
+          if (ids && typeof v === 'string' && ids.has(v)) {
+            result = { stackId: v };
+            return true;
+          }
+        }
+        h = h.next; d++;
+      }
+      return false;
+    });
+    return result;
+  }
+
+  function rectFromPoint(x, y) {
+    return { left: x, top: y, width: 1, height: 1 };
+  }
+
+  function presentFiberCard(cardName, rect) {
+    currentSerial++;
+    var serial = currentSerial;
+    currentAnchor = rect;
+    currentCardName = cardName;
+    panelOwner = 'fiber';
+    clearTimeout(hideTimer);
+    LOG('Lookup [fiber]:', cardName);
+    lookupCard(cardName).then(function (result) {
+      if (!result || currentSerial !== serial) return;
+      LOG('Found:', result.n, '(' + (result._src || '?') + ')', '[fiber]');
+      showPanel(rect, result, cardName);
+    }).catch(function (err) {
+      WARN('Fiber lookup failed:', err);
+    });
+  }
+
+  function pollFiberHover() {
+    try {
+      // When a data-card-preview portal is live, the MutationObserver path owns
+      // the tooltip — never race it.
+      if (document.querySelector('[data-card-preview]')) {
+        if (panelOwner === 'fiber') hidePanel();
+        return true;
+      }
+
+      var gv = getGameView();
+      var scan = scanFiberHover(gv);
+
+      if (scan && scan.hand && scan.hand.card && scan.hand.card.identity && scan.hand.card.identity.name) {
+        var hname = scan.hand.card.identity.name;
+        var hrect = scan.hand.anchorRect || rectFromPoint(scan.hand.mousePos.x, scan.hand.mousePos.y);
+        if (panelOwner === 'fiber' && currentCardName === hname && currentAnchor) currentAnchor = hrect;
+        else presentFiberCard(hname, hrect);
+        return true;
+      }
+
+      if (scan && scan.stackId && gv && Array.isArray(gv.stack)) {
+        for (var i = 0; i < gv.stack.length; i++) {
+          var o = gv.stack[i];
+          if (o && o.id === scan.stackId && o.identity && o.identity.name) {
+            var sname = o.identity.name;
+            var srect = rectFromPoint(lastMouse.x, lastMouse.y);
+            if (panelOwner === 'fiber' && currentCardName === sname && currentAnchor) currentAnchor = srect;
+            else presentFiberCard(sname, srect);
+            return true;
+          }
+        }
+      }
+
+      if (panelOwner === 'fiber') hidePanel();
+      return !!gv;
+    } catch (_err) {
+      // Fiber introspection is best-effort — never break the DOM paths.
+      return true;
+    }
+  }
+
+  function startFiberPolling() {
+    setTimeout(function tick() {
+      var active = pollFiberHover();
+      setTimeout(tick, active ? FIBER_SCAN_MS : 800);
+    }, 800);
   }
 
   // --- Settings dialog ----------------------------------------------------
@@ -807,6 +1040,10 @@
     startMutationObserver();
     document.addEventListener('pointerover', onPointerOver);
     document.addEventListener('pointerout', onPointerOut);
+    document.addEventListener('pointermove', function (e) {
+      lastMouse.x = e.clientX;
+      lastMouse.y = e.clientY;
+    }, true);
 
     if (typeof root.addEventListener === 'function') {
       root.addEventListener('resize', repositionPanel);
@@ -814,9 +1051,10 @@
     }
 
     fetchAndLoadDB();
+    startFiberPolling();
 
     updateMenuToggles();
-    LOG('v0.2.2 ready — MutationObserver + pointerover active');
+    LOG('v0.3.0 ready — MutationObserver + pointerover + fiber scan');
   }
 
   if (document.readyState === 'loading') {
