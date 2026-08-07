@@ -3,7 +3,7 @@
 // @name:zh-CN   Manabrew 简体中文卡牌浮窗
 // @name:en      Manabrew Simplified Chinese Card Tooltip
 // @namespace    https://play.manabrew.app/
-// @version      0.9.1
+// @version      0.9.2
 // @description  在 Manabrew 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。
 // @description:zh-CN 在 Manabrew 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
 // @description:en Show Simplified Chinese card info on hover for Manabrew — name, type, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
@@ -43,10 +43,11 @@
 
   var DATA_BASE = 'https://raw.githubusercontent.com/jacefromxa/manabrew-cn/main/dist';
   var MANA_CSS_URL = 'https://cdn.jsdelivr.net/npm/mana-font@1.18.0/css/mana.css';
-  // v0.9.1: bumped from mbrw-api- to invalidate any cached entries that stored
-  // a wrong card's name under a fuzzy /result hit (e.g. reanimate → 复生的九头蛇
-  // 夫人). Users re-fetch only the handful of API-only cards they hover.
-  var API_CACHE_PREFIX = 'mbrw-api2-';
+  // v0.9.2: bumped to mbrw-api3- — identity-aware exact-endpoint results should
+  // supersede any stale fuzzy name-only entries from before, so old caches are
+  // dropped once. (v0.9.1 bumped mbrw-api- → mbrw-api2- for the wrong-card-name
+  // leak fix.)
+  var API_CACHE_PREFIX = 'mbrw-api3-';
 
   // --- Settings -----------------------------------------------------------
 
@@ -332,63 +333,117 @@
     } catch (_) {}
   }
 
-  function queryMtgch(name) {
+  // One exact request to the deterministic /api/v1/card/{SET}/{CN} endpoint —
+  // the same "set + collector number" lookup the Scryfall-zhs plugin uses.
+  // Returns null when the print isn't found (mtgch 404s on suffixed numbers
+  // like "278s") or its English name doesn't match the hovered card, so the
+  // caller falls back to the fuzzy name search rather than leak a wrong card.
+  function fetchExactCard(identity, hoveredName) {
+    var set = String(identity.setCode || '').trim().toUpperCase();
+    var num = String(identity.cardNumber || '').trim();
+    if (!/^[A-Z0-9]{2,6}$/.test(set) || !/^[A-Za-z0-9]+$/.test(num)) return Promise.resolve(null);
+    return fetch('https://mtgch.com/api/v1/card/' + encodeURIComponent(set) + '/' + encodeURIComponent(num))
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (!j || !j.name || j.detail || j.message) return null;
+        // Name gate: the exact endpoint must be the card we hovered. A suffixed
+        // collector number (e.g. "278s") can resolve to a plain print instead
+        // (BLB/278 → Forest) — never let that wrong card's text leak in.
+        var hLower = String(hoveredName || '').toLowerCase().trim();
+        if (hLower && String(j.name).toLowerCase().trim() !== hLower) return null;
+        return {
+          n: j.atomic_translated_name || j.zhs_name || j.name,
+          t: j.atomic_translated_text || j.zhs_text || undefined,
+          y: j.atomic_translated_type || j.zhs_type_line || undefined,
+          c: j.mana_cost || undefined,
+          p: j.power != null ? j.power : undefined,
+          q: j.toughness != null ? j.toughness : undefined,
+          l: j.loyalty != null ? j.loyalty : undefined,
+          d: j.defense != null ? j.defense : undefined,
+          _src: 'api'
+        };
+      })
+      .catch(function () { return null; });
+  }
+
+  // Fuzzy name search (2 requests: card-names + result). Kept as the fallback
+  // for alt-only paths that have no card identity, and whenever the exact
+  // endpoint 404s or mismatches.
+  function fuzzyQueryMtgch(name) {
+    var enc = encodeURIComponent(name);
+    return fetch('https://mtgch.com/api/v1/card-names/?q=' + enc + '&size=1')
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
+      .then(function (d) {
+        // /card-names is a clean name lookup — its top hit is the card we want.
+        var zhName = ((d.items || [])[0] || {}).translated_name || null;
+        // /result is fuzzy AND paginated: with page_size=1 the first page can
+        // be a different card (e.g. "reanimate" → "Madame Hydra, Reanimated"
+        // while the real Reanimate sits on a later page). Ask for a large page
+        // and scan every item for an exact English-name match. A non-matching
+        // card's name/text/cost must never leak into the tooltip — this was
+        // why hovering Reanimate showed 复生的九头蛇夫人 (wrong card).
+        return fetch('https://mtgch.com/api/v1/result?q=%22' + enc + '%22&unique=oracle_id&page_size=20')
+          .then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
+          .then(function (sd) {
+            var nameLower = name.toLowerCase().trim();
+            var items = sd.items || [];
+            var exact = null;
+            for (var i = 0; i < items.length; i++) {
+              if (items[i] && String(items[i].name || '').toLowerCase().trim() === nameLower) {
+                exact = items[i];
+                break;
+              }
+            }
+            if (!exact) {
+              // No exact card among the fuzzy results — show the name alone
+              // rather than a different card's oracle text.
+              return { n: zhName || name, _src: 'api' };
+            }
+            return {
+              n: exact.atomic_translated_name || exact.zhs_name || zhName || name,
+              t: exact.atomic_translated_text || exact.zhs_text || undefined,
+              y: exact.atomic_translated_type || exact.zhs_type_line || undefined,
+              c: exact.mana_cost || undefined,
+              p: exact.power || undefined,
+              q: exact.toughness || undefined,
+              l: exact.loyalty || undefined,
+              d: exact.defense || undefined,
+              _src: 'api'
+            };
+          });
+      });
+  }
+
+  // Public lookup used by the hover paths. `identity` ({setCode, cardNumber})
+  // is present on the fiber paths (hand / stack / deck cover / preview) —
+  // those get ONE exact request with zero wrong-card risk. Alt-only paths pass
+  // no identity and use the fuzzy search. Results cache under the card name.
+  function queryMtgch(name, identity) {
     var key = name.toLowerCase();
     var pending = apiQueue.get(key);
     if (pending) return pending;
 
     pending = new Promise(function (resolve) {
-      var enc = encodeURIComponent(name);
-      fetch('https://mtgch.com/api/v1/card-names/?q=' + enc + '&size=1')
-        .then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
-        .then(function (d) {
-          // /card-names is a clean name lookup — its top hit is the card we want.
-          var zhName = ((d.items || [])[0] || {}).translated_name || null;
-          // /result is fuzzy AND paginated: with page_size=1 the first page can
-          // be a different card (e.g. "reanimate" → "Madame Hydra, Reanimated"
-          // while the real Reanimate sits on a later page). Ask for a large page
-          // and scan every item for an exact English-name match. A non-matching
-          // card's name/text/cost must never leak into the tooltip — this was
-          // why hovering Reanimate showed 复生的九头蛇夫人 (wrong card).
-          return fetch('https://mtgch.com/api/v1/result?q=%22' + enc + '%22&unique=oracle_id&page_size=20')
-            .then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
-            .then(function (sd) {
-              var nameLower = name.toLowerCase().trim();
-              var items = sd.items || [];
-              var exact = null;
-              for (var i = 0; i < items.length; i++) {
-                if (items[i] && String(items[i].name || '').toLowerCase().trim() === nameLower) {
-                  exact = items[i];
-                  break;
-                }
-              }
-              if (!exact) {
-                // No exact card among the fuzzy results — show the name alone
-                // rather than a different card's oracle text.
-                return { n: zhName || name, _src: 'api' };
-              }
-              return {
-                n: exact.atomic_translated_name || exact.zhs_name || zhName || name,
-                t: exact.atomic_translated_text || exact.zhs_text || undefined,
-                y: exact.atomic_translated_type || exact.zhs_type_line || undefined,
-                c: exact.mana_cost || undefined,
-                p: exact.power || undefined,
-                q: exact.toughness || undefined,
-                l: exact.loyalty || undefined,
-                d: exact.defense || undefined,
-                _src: 'api'
-              };
-            });
-        })
-        .catch(function () { return { n: name, _src: 'miss' }; })
-        .then(function (r) {
-          apiCache.set(key, r);
-          if (apiCache.size > API_CACHE_MAX) apiCache.delete(apiCache.keys().next().value);
-          persistApiCache();
-          apiQueue.delete(key);
-          resolve(r);
+      var runFuzzy = function () {
+        fuzzyQueryMtgch(name).then(resolve, function () { resolve({ n: name, _src: 'miss' }); });
+      };
+      if (identity && identity.setCode && identity.cardNumber) {
+        fetchExactCard(identity, name).then(function (r) {
+          if (r) resolve(r);
+          else runFuzzy();
         });
-    });
+      } else {
+        runFuzzy();
+      }
+    })
+      .catch(function () { return { n: name, _src: 'miss' }; })
+      .then(function (r) {
+        apiCache.set(key, r);
+        if (apiCache.size > API_CACHE_MAX) apiCache.delete(apiCache.keys().next().value);
+        persistApiCache();
+        apiQueue.delete(key);
+        return r;
+      });
 
     apiQueue.set(key, pending);
     return pending;
@@ -396,7 +451,7 @@
 
   // --- Core lookup --------------------------------------------------------
 
-  function lookupCard(cardName) {
+  function lookupCard(cardName, identity) {
     if (!cardName) return Promise.resolve(null);
     var key = cardName.trim().toLowerCase();
     if (!key || key === 'face-down card') return Promise.resolve(null);
@@ -422,12 +477,12 @@
           var l2 = zhDB.get(key);
           if (l2) return entryToCard(l2, 'local');
         }
-        return queryMtgch(cardName.trim());
+        return queryMtgch(cardName.trim(), identity);
       });
     }
 
     // 4. Fallback to API
-    return queryMtgch(cardName.trim());
+    return queryMtgch(cardName.trim(), identity);
   }
 
   // DB entry → display card. New v0.4.0 fields: t=text, y=type, c=mana cost,
@@ -701,7 +756,7 @@
   // Only missing fields are merged in (local name/type/text win), so nothing
   // local is ever overwritten. Results are cached, so each card costs the API
   // exactly once across sessions.
-  function upgradeCard(cardName, serial) {
+  function upgradeCard(cardName, serial, identity) {
     var key = String(cardName || '').trim().toLowerCase();
     if (!key) return;
     var cached = apiCache.get(key);
@@ -726,7 +781,7 @@
     };
     if (cached) { done(cached); return; }
     setTimeout(function () {
-      queryMtgch(cardName).then(done).catch(function () {});
+      queryMtgch(cardName, identity).then(done).catch(function () {});
     }, 60); // tiny stagger — the API is shared with the mtgch site
   }
 
@@ -834,14 +889,16 @@
   // images whose alt is the DECK name, not a card name. Resolve the actual
   // cover card (usually the commander) from the React fiber's `cover` prop
   // (DeckCoverImage / DeckSelectionCard memoizedProps) — `resolveCoverCard`
-  // picks the commander for commander decks, else the first card.
-  function deckCoverCardName(el) {
+  // picks the commander for commander decks, else the first card. Returns the
+  // full identity (name + setCode + cardNumber) so the exact API endpoint can
+  // be used for covers that miss the local DB.
+  function deckCoverIdentity(el) {
     var f = getFiberFromNode(el);
     var guard = 0;
     while (f && guard++ < 60) {
       var p = f.memoizedProps;
       if (p && typeof p === 'object' && p.cover && p.cover.identity && typeof p.cover.identity.name === 'string') {
-        return p.cover.identity.name;
+        return p.cover.identity;
       }
       f = f.return;
     }
@@ -850,19 +907,19 @@
 
   // --- Unified card display ------------------------------------------------
 
-  function presentCard(anchorEl, cardName) {
+  function presentCard(anchorEl, cardName, identity) {
     currentSerial++;
     var serial = currentSerial;
     currentAnchor = anchorEl;
     currentCardName = cardName;
     panelOwner = 'dom';
-    LOG('Lookup:', cardName);
+    LOG('Lookup:', cardName, identity ? '(' + identity.setCode + '/' + identity.cardNumber + ')' : '');
 
-    lookupCard(cardName).then(function (result) {
+    lookupCard(cardName, identity).then(function (result) {
       if (!result || currentSerial !== serial) return;
       LOG('Found:', result.n, '(' + (result._src || '?') + ')');
       showPanel(anchorEl, result, cardName);
-      if (cardNeedsUpgrade(result)) upgradeCard(cardName, serial);
+      if (cardNeedsUpgrade(result)) upgradeCard(cardName, serial, identity);
     }).catch(function (err) {
       WARN('Lookup failed:', err);
     });
@@ -940,7 +997,8 @@
     if (!cardName || cardName === 'Face-down card') return; // still loading / facedown — keep current
     if (cardName === currentCardName && panel.style.display !== 'none') return; // no change
     LOG('Preview card → ' + cardName);
-    presentCard(previewEl, cardName);
+    var identity = previewIdentity(previewEl, cardName);
+    presentCard(previewEl, cardName, identity);
   }
 
   function extractCardName(previewEl) {
@@ -953,6 +1011,33 @@
       if (isValidCardName(a)) return a;
     }
     return '';
+  }
+
+  // Best-effort: the preview portal's own CardPreview component holds the
+  // hovered card in memoizedProps.card.identity. Walking the fiber from the
+  // portal up yields setCode + cardNumber, so the exact API endpoint can be
+  // used even on battlefield / deck-editor previews. Prefer the identity whose
+  // name matches the displayed alt; otherwise take the first one carrying a
+  // real set code. Alt-only paths (face-down, name mismatch on a DFC back
+  // face) still fall back to the fuzzy name search.
+  function previewIdentity(previewEl, altName) {
+    var f = getFiberFromNode(previewEl);
+    var guard = 0;
+    var altLower = String(altName || '').toLowerCase().trim();
+    var fallback = null;
+    while (f && guard++ < 80) {
+      var p = f.memoizedProps;
+      if (p && typeof p === 'object' && p.card && p.card.identity) {
+        var id = p.card.identity;
+        if (id && id.setCode && id.cardNumber) {
+          var nm = String(id.name || '').toLowerCase().trim();
+          if (altLower && nm === altLower) return id;
+          if (!fallback) fallback = id;
+        }
+      }
+      f = f.return;
+    }
+    return fallback;
   }
 
   var hideTimer = null;
@@ -983,14 +1068,15 @@
     hoverTimer = setTimeout(function () {
       var cardName = img.alt.trim();
       // Deck cover images carry the DECK name as alt; resolve the actual
-      // cover card (commander) from React props when available.
-      var coverName = deckCoverCardName(img);
-      if (coverName) {
-        cardName = coverName;
+      // cover card (commander) from React props when available. The full
+      // identity (setCode + cardNumber) feeds the exact API endpoint.
+      var identity = deckCoverIdentity(img);
+      if (identity && identity.name) {
+        cardName = identity.name;
         LOG('Deck cover → ' + cardName);
       }
       if (!isValidCardName(cardName)) return;
-      presentCard(img, cardName);
+      presentCard(img, cardName, identity);
     }, HOVER_DELAY_MS);
   }
 
@@ -1199,19 +1285,19 @@
     return { left: x, top: y, width: 1, height: 1 };
   }
 
-  function presentFiberCard(cardName, rect) {
+  function presentFiberCard(cardName, rect, identity) {
     currentSerial++;
     var serial = currentSerial;
     currentAnchor = rect;
     currentCardName = cardName;
     panelOwner = 'fiber';
     clearTimeout(hideTimer);
-    LOG('Lookup [fiber]:', cardName);
-    lookupCard(cardName).then(function (result) {
+    LOG('Lookup [fiber]:', cardName, identity ? '(' + identity.setCode + '/' + identity.cardNumber + ')' : '');
+    lookupCard(cardName, identity).then(function (result) {
       if (!result || currentSerial !== serial) return;
       LOG('Found:', result.n, '(' + (result._src || '?') + ')', '[fiber]');
       showPanel(rect, result, cardName);
-      if (cardNeedsUpgrade(result)) upgradeCard(cardName, serial);
+      if (cardNeedsUpgrade(result)) upgradeCard(cardName, serial, identity);
     }).catch(function (err) {
       WARN('Fiber lookup failed:', err);
     });
@@ -1249,7 +1335,7 @@
         var hname = scan.hand.card.identity.name;
         var hrect = handRectFromBounds(scan.hand.bounds);
         if (panelOwner === 'fiber' && currentCardName === hname && currentAnchor) currentAnchor = hrect;
-        else { DIAG('poll: HAND hover → ' + hname); presentFiberCard(hname, hrect); }
+        else { DIAG('poll: HAND hover → ' + hname); presentFiberCard(hname, hrect, scan.hand.card.identity); }
         return true;
       }
 
@@ -1259,7 +1345,7 @@
         if (sname) {
           var srect = rectFromPoint(lastMouse.x, lastMouse.y);
           if (panelOwner === 'fiber' && currentCardName === sname && currentAnchor) currentAnchor = srect;
-          else { DIAG('poll: STACK hover → ' + sname); presentFiberCard(sname, srect); }
+          else { DIAG('poll: STACK hover → ' + sname); presentFiberCard(sname, srect, so.identity || (so.card && so.card.identity)); }
           return true;
         }
       }
@@ -1652,7 +1738,7 @@
     startFiberPolling();
 
     updateMenuToggles();
-    LOG('v0.9.1 ready — exact-match API lookup (no wrong-card name leak) + DB-first lookup');
+    LOG('v0.9.2 ready — identity-aware exact /card/{SET}/{CN} lookup + fuzzy fallback');
   }
 
   if (document.readyState === 'loading') {
