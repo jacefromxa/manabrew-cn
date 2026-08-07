@@ -4,7 +4,7 @@
 
 在 [Manabrew](https://play.manabrew.app/) 悬停万智牌卡牌时，自动在预览大图旁显示简体中文翻译浮窗——卡名、类别、规则文本，并带 **法术力费用**（右上角，与牌名同行）、**攻防**（右下角，`*/*` 文本形式，含忠诚度/防御）和 **彩色 MTG 符号图标**（`{W}`、`{T}`、`{2/W}` 等，正文规则文本同样使用彩色图标）。
 
-覆盖区域：**战场**（`data-card-preview` portal）、**手牌**、**堆叠**（React fiber 状态）、以及 **牌组选择目录页**（`/play/offline/constructed` 等）——悬停每个牌组的预览大图即可看到该牌组封面卡（主将）的中文信息。
+覆盖区域：**战场**（`data-card-preview` portal）、**手牌**、**堆叠**（React fiber 状态）、**牌组选择目录页**（`/play/offline/constructed` 等，悬停每个牌组的预览大图即可看到该牌组封面卡/主将）、以及 **牌组编辑器**（`/deck-editor`，悬停列表牌名时浮窗跟随右侧预览图实时切换）。
 
 ## 安装
 
@@ -45,6 +45,7 @@ v0.6.0 默认开启 fiber 扫描诊断日志（`[manabrew-cn:diag]`）。手牌/
 
 - 手牌浮窗读取 BoardCanvas 的 `handHover` state（`{card, bounds}`）；堆叠浮窗读取 `hoveredStackObjectId`，通过 `gameView.stack` / `stackSpec` 解析卡名。诊断日志会打印 `scan → HAND/STACK …` 和 `poll: …`。
 - 牌组封面悬停解析：预览图 alt 是牌组名，脚本从 React fiber 的 `cover` prop 取封面卡名（主将），日志打印 `Deck cover → …`。
+- 牌组编辑器预览（v0.8.0）：manabrew 复用一个已挂载的 `data-card-preview`，卡牌切换时仅原地换图。脚本用 `live preview observer` 监听其内部变化（卡牌切换、图片晚到均触发），日志打印 `Preview card → …`。
 - 控制台设 `localStorage['mbrw-cn-diag']='0'` 可关闭；`window.__MBRW_DIAG=true` 可重新开启。
 
 ## 许可

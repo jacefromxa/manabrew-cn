@@ -3,7 +3,7 @@
 // @name:zh-CN   Manabrew 简体中文卡牌浮窗
 // @name:en      Manabrew Simplified Chinese Card Tooltip
 // @namespace    https://play.manabrew.app/
-// @version      0.7.0
+// @version      0.8.0
 // @description  在 Manabrew 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。
 // @description:zh-CN 在 Manabrew 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
 // @description:en Show Simplified Chinese card info on hover for Manabrew — name, type, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
@@ -778,6 +778,11 @@
   // --- MutationObserver: CardPreview portal --------------------------------
 
   function startMutationObserver() {
+    // Mount/unmount detection for [data-card-preview] portals (battlefield,
+    // deck-editor preview rail, selection page). Content changes within a live
+    // portal are tracked by attachLivePreviewObserver above — card switches
+    // and late image loads — so the tooltip stays in sync with what the
+    // preview actually shows.
     new MutationObserver(function (mutations) {
       for (var i = 0; i < mutations.length; i++) {
         var m = mutations[i];
@@ -805,21 +810,43 @@
   function onPreviewAdded(previewEl) {
     LOG('Preview appeared');
     clearTimeout(hideTimer); // a replacement preview supersedes any pending hide
-    tryShowFromPreview(previewEl, ++currentSerial, 0);
+    // The body-level observer only fires when a [data-card-preview] node is
+    // added/removed. manabrew reuses one mounted portal across successive
+    // cards (the preview machine instant-switches and React swaps the <img>
+    // alt/src in place), so a mount is not enough: also watch the live
+    // preview's subtree and re-present whenever the displayed card changes.
+    // This likewise catches the card image appearing late (Scryfall faces
+    // still loading), which used to fall through the 5×50ms retry window and
+    // leave no tooltip at all.
+    attachLivePreviewObserver(previewEl);
+    onLivePreviewChanged(previewEl);
   }
 
-  function tryShowFromPreview(previewEl, serial, attempt) {
-    if (currentSerial !== serial) return;
+  var livePreviewObserver = null;
 
+  function attachLivePreviewObserver(previewEl) {
+    detachLivePreviewObserver();
+    livePreviewObserver = new MutationObserver(function () {
+      onLivePreviewChanged(previewEl);
+    });
+    livePreviewObserver.observe(previewEl, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['alt', 'src'],
+    });
+  }
+
+  function detachLivePreviewObserver() {
+    if (livePreviewObserver) { livePreviewObserver.disconnect(); livePreviewObserver = null; }
+  }
+
+  function onLivePreviewChanged(previewEl) {
+    clearTimeout(hideTimer);
     var cardName = extractCardName(previewEl);
-    LOG('tryShow attempt', attempt, 'cardName:', cardName || '(none)');
-
-    if (!cardName && attempt < 5) {
-      setTimeout(function () { tryShowFromPreview(previewEl, serial, attempt + 1); }, 50);
-      return;
-    }
-    if (!cardName || cardName === 'Face-down card') { LOG('No valid card name, skipping'); return; }
-
+    if (!cardName || cardName === 'Face-down card') return; // still loading / facedown — keep current
+    if (cardName === currentCardName && panel.style.display !== 'none') return; // no change
+    LOG('Preview card → ' + cardName);
     presentCard(previewEl, cardName);
   }
 
@@ -839,6 +866,7 @@
 
   function onPreviewRemoved() {
     LOG('Preview removed');
+    detachLivePreviewObserver();
     // React re-mounts the preview portal while hovering (image loads, phase
     // transitions). Don't blank the panel on every transient removal — only
     // hide if no new preview replaces it within a short window.
@@ -1317,7 +1345,7 @@
     startFiberPolling();
 
     updateMenuToggles();
-    LOG('v0.7.0 ready — deck-cover hover on selection page (commander info)');
+    LOG('v0.8.0 ready — reliable deck-editor preview tooltip (live preview observer)');
   }
 
   if (document.readyState === 'loading') {
