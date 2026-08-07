@@ -1,0 +1,8 @@
+# Uncompressed build artifact (keep only .gz)
+dist/en2zhs.json
+
+# Node
+node_modules/
+
+# Optional data sources (dev only)
+data/
