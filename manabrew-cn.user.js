@@ -3,7 +3,7 @@
 // @name:zh-CN   Manabrew 简体中文卡牌浮窗
 // @name:en      Manabrew Simplified Chinese Card Tooltip
 // @namespace    https://play.manabrew.app/
-// @version      0.9.2
+// @version      0.9.3
 // @description  在 Manabrew 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。
 // @description:zh-CN 在 Manabrew 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
 // @description:en Show Simplified Chinese card info on hover for Manabrew — name, type, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
@@ -786,6 +786,12 @@
   }
 
   function hidePanel() {
+    // Fixed mode pins the panel: it stays up across hovers and must never be
+    // auto-hidden. pointerout, preview teardown, and the fiber poll all call
+    // hidePanel — in fixed mode those are no-ops (otherwise the pinned panel
+    // vanishes as soon as you stop hovering a card / the preview remounts).
+    // It only goes away when the mode is switched back to follow.
+    if (settings.panelMode === 'fixed') return;
     stopFollowing();
     panel.style.display = 'none';
     panel.style.visibility = 'hidden';
@@ -1738,7 +1744,7 @@
     startFiberPolling();
 
     updateMenuToggles();
-    LOG('v0.9.2 ready — identity-aware exact /card/{SET}/{CN} lookup + fuzzy fallback');
+    LOG('v0.9.3 ready — fixed panel no longer auto-hides + identity-aware exact /card/{SET}/{CN} lookup');
   }
 
   if (document.readyState === 'loading') {
