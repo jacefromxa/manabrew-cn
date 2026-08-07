@@ -3,7 +3,7 @@
 // @name:zh-CN   Manabrew 简体中文卡牌浮窗
 // @name:en      Manabrew Simplified Chinese Card Tooltip
 // @namespace    https://play.manabrew.app/
-// @version      0.6.0
+// @version      0.7.0
 // @description  在 Manabrew 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。
 // @description:zh-CN 在 Manabrew 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
 // @description:en Show Simplified Chinese card info on hover for Manabrew — name, type, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
@@ -737,6 +737,24 @@
     return null;
   }
 
+  // Deck covers on the selection page (/play/offline/constructed) are card
+  // images whose alt is the DECK name, not a card name. Resolve the actual
+  // cover card (usually the commander) from the React fiber's `cover` prop
+  // (DeckCoverImage / DeckSelectionCard memoizedProps) — `resolveCoverCard`
+  // picks the commander for commander decks, else the first card.
+  function deckCoverCardName(el) {
+    var f = getFiberFromNode(el);
+    var guard = 0;
+    while (f && guard++ < 60) {
+      var p = f.memoizedProps;
+      if (p && typeof p === 'object' && p.cover && p.cover.identity && typeof p.cover.identity.name === 'string') {
+        return p.cover.identity.name;
+      }
+      f = f.return;
+    }
+    return null;
+  }
+
   // --- Unified card display ------------------------------------------------
 
   function presentCard(anchorEl, cardName) {
@@ -843,6 +861,13 @@
     clearTimeout(hoverTimer);
     hoverTimer = setTimeout(function () {
       var cardName = img.alt.trim();
+      // Deck cover images carry the DECK name as alt; resolve the actual
+      // cover card (commander) from React props when available.
+      var coverName = deckCoverCardName(img);
+      if (coverName) {
+        cardName = coverName;
+        LOG('Deck cover → ' + cardName);
+      }
       if (!isValidCardName(cardName)) return;
       presentCard(img, cardName);
     }, HOVER_DELAY_MS);
@@ -1292,7 +1317,7 @@
     startFiberPolling();
 
     updateMenuToggles();
-    LOG('v0.6.0 ready — hand/stack tooltips via handHover state + stack-id fiber scan');
+    LOG('v0.7.0 ready — deck-cover hover on selection page (commander info)');
   }
 
   if (document.readyState === 'loading') {
