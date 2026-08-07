@@ -3,10 +3,10 @@
 // @name:zh-CN   Manabrew 简体中文卡牌浮窗
 // @name:en      Manabrew Simplified Chinese Card Tooltip
 // @namespace    https://play.manabrew.app/
-// @version      0.3.0
-// @description  在 Manabrew 悬停 MTG 卡牌时显示简体中文翻译浮窗
-// @description:zh-CN 在 Manabrew 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本。
-// @description:en Show Simplified Chinese card info on hover for Manabrew — card name, type, and rules text.
+// @version      0.5.0
+// @description  在 Manabrew 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。
+// @description:zh-CN 在 Manabrew 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
+// @description:en Show Simplified Chinese card info on hover for Manabrew — name, type, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
 // @author       jacefromxa
 // @license      GPL-3.0
 // @match        https://play.manabrew.app/*
@@ -28,8 +28,21 @@
   var WARN = function () {
     try { console.warn.apply(console, ['[manabrew-cn]'].concat(Array.prototype.slice.call(arguments))); } catch (_) {}
   };
+  // Verbose fiber-introspection diagnostics. Flip on for debugging the hand /
+  // stack tooltips (v0.4.0 ships with it enabled; set window.__MBRW_DIAG=false
+  // or localStorage['mbrw-cn-diag']='0' to quiet the console).
+  var DIAG = function () {
+    if (root.__MBRW_DIAG !== false) {
+      try { console.log.apply(console, ['[manabrew-cn:diag]'].concat(Array.prototype.slice.call(arguments))); } catch (_) {}
+    }
+  };
+  try {
+    var diagPref = localStorage.getItem('mbrw-cn-diag');
+    if (diagPref === '0') root.__MBRW_DIAG = false;
+  } catch (_) {}
 
   var DATA_BASE = 'https://raw.githubusercontent.com/jacefromxa/manabrew-cn/main/dist';
+  var MANA_CSS_URL = 'https://cdn.jsdelivr.net/npm/mana-font@1.18.0/css/mana.css';
   var API_CACHE_PREFIX = 'mbrw-api-';
 
   // --- Settings -----------------------------------------------------------
@@ -88,7 +101,25 @@
       '--mbrw-font-size:' + settings.fontSize + 'px;' +
       '}' +
       '#mbrw-cn-panel::-webkit-scrollbar{width:4px}' +
-      '#mbrw-cn-panel::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:2px}';
+      '#mbrw-cn-panel::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:2px}' +
+      // Mana-symbol glyphs (font provided by ensureManaCSS). Slight drop-shadow
+      // keeps dark symbols (e.g. {B}) visible on the dark panel.
+      '#mbrw-cn-panel .ms{filter:drop-shadow(0 0 0.4px rgba(0,0,0,0.55));}' +
+      '#mbrw-cn-panel .mbrw-cost-row .ms{font-size:1.05em;vertical-align:middle;margin-right:2px;}' +
+      '#mbrw-cn-panel .mbrw-rules .ms{font-size:0.95em;vertical-align:middle;margin-right:1px;}';
+  }
+
+  // Inject the official MTG mana font (https://mana.andrewgioia.com). One-time,
+  // browser-cached. Without it, .ms spans render empty but the tooltip still works.
+  function ensureManaCSS() {
+    try {
+      if (document.getElementById('mbrw-mana-css')) return;
+      var link = document.createElement('link');
+      link.id = 'mbrw-mana-css';
+      link.rel = 'stylesheet';
+      link.href = MANA_CSS_URL;
+      (document.head || document.documentElement).appendChild(link);
+    } catch (_) {}
   }
 
   // --- Local database loader -----------------------------------------------
@@ -264,7 +295,23 @@
             .then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
             .then(function (sd) {
               var item = (sd.items || [])[0] || {};
-              return { n: zhName || name, t: item.zhs_text || undefined, y: item.zhs_type_line || undefined, _src: 'api' };
+              // The mtgch /result search is fuzzy and can surface the wrong card
+              // (e.g. "tarmogoyf" → "Tarmogoyf Nest", "lightning bolt" → a MDFC
+              // front face). Only trust its translations when the English name
+              // matches exactly; otherwise return the name alone and skip text,
+              // rather than showing a wrong card's oracle text.
+              var matchedEn = ((item.name || '').toLowerCase().trim() === name.toLowerCase().trim());
+              return {
+                n: item.atomic_translated_name || item.zhs_name || zhName || name,
+                t: matchedEn ? (item.atomic_translated_text || item.zhs_text || undefined) : undefined,
+                y: matchedEn ? (item.atomic_translated_type || item.zhs_type_line || undefined) : undefined,
+                c: matchedEn ? (item.mana_cost || undefined) : undefined,
+                p: matchedEn ? (item.power || undefined) : undefined,
+                q: matchedEn ? (item.toughness || undefined) : undefined,
+                l: matchedEn ? (item.loyalty || undefined) : undefined,
+                d: matchedEn ? (item.defense || undefined) : undefined,
+                _src: 'api'
+              };
             });
         })
         .catch(function () { return { n: name, _src: 'miss' }; })
@@ -296,9 +343,7 @@
     if (zhDB) {
       var local = zhDB.get(key);
       if (local) {
-        var r = { n: local.n, _src: 'local' };
-        if (local.t) r.t = local.t;
-        if (local.y) r.y = local.y;
+        var r = entryToCard(local, 'local');
         return Promise.resolve(r);
       }
     }
@@ -308,12 +353,7 @@
       return dbLoadPromise.then(function () {
         if (zhDB) {
           var l2 = zhDB.get(key);
-          if (l2) {
-            var r2 = { n: l2.n, _src: 'local' };
-            if (l2.t) r2.t = l2.t;
-            if (l2.y) r2.y = l2.y;
-            return r2;
-          }
+          if (l2) return entryToCard(l2, 'local');
         }
         return queryMtgch(cardName.trim());
       });
@@ -321,6 +361,22 @@
 
     // 4. Fallback to API
     return queryMtgch(cardName.trim());
+  }
+
+  // DB entry → display card. New v0.4.0 fields: t=text, y=type, c=mana cost,
+  // p/q=power/toughness, l=loyalty, d=defense, o=1 (intentionally textless —
+  // no runtime API upgrade needed).
+  function entryToCard(local, src) {
+    var r = { n: local.n, _src: src };
+    if (local.t) r.t = local.t;
+    if (local.y) r.y = local.y;
+    if (local.c) r.c = local.c;
+    if (local.p) r.p = local.p;
+    if (local.q) r.q = local.q;
+    if (local.l) r.l = local.l;
+    if (local.d) r.d = local.d;
+    if (local.o) r.o = 1;
+    return r;
   }
 
   // --- Panel creation ------------------------------------------------------
@@ -407,14 +463,30 @@
     clearPanel();
     var doc = document;
 
+    // Header row — card name on the left, mana cost top-right on the same line
+    // (classic Magic card layout). The name column shrinks (min-width:0) so a
+    // long name wraps instead of pushing the cost off-panel.
+    var header = doc.createElement('div');
+    header.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;gap:10px';
+    var nameCol = doc.createElement('div');
+    nameCol.style.cssText = 'min-width:0;flex:1';
     var nameEl = doc.createElement('div');
     nameEl.textContent = card.n;
-    nameEl.style.cssText = 'color:var(--mbrw-name-color);font-size:' + (settings.fontSize + 2) + 'px;font-weight:700';
-    panel.appendChild(nameEl);
+    nameEl.style.cssText = 'color:var(--mbrw-name-color);font-size:' + (settings.fontSize + 2) + 'px;font-weight:700;line-height:1.25';
+    nameCol.appendChild(nameEl);
+    header.appendChild(nameCol);
+    if (card.c) {
+      var costEl = doc.createElement('div');
+      costEl.className = 'mbrw-cost-row';
+      costEl.innerHTML = manaHtml(card.c);
+      costEl.style.cssText = 'font-size:' + (settings.fontSize + 2) + 'px;line-height:1.25;white-space:nowrap;margin-top:1px';
+      header.appendChild(costEl);
+    }
+    panel.appendChild(header);
 
     var enEl = doc.createElement('div');
     enEl.textContent = cardNameEn;
-    enEl.style.cssText = 'color:var(--mbrw-en-name-color);font-size:' + (settings.fontSize - 3) + 'px;margin-top:1px';
+    enEl.style.cssText = 'color:var(--mbrw-en-name-color);font-size:' + (settings.fontSize - 3) + 'px;margin-top:2px';
     panel.appendChild(enEl);
 
     if (card.y) {
@@ -426,15 +498,86 @@
 
     if (card.t) {
       var textEl = doc.createElement('div');
-      textEl.textContent = prefixLines(card.t);
+      textEl.className = 'mbrw-rules';
+      // Escape first, then substitute mana symbols with icon spans — the only
+      // HTML that reaches innerHTML is the <i class="ms …"> we insert.
+      textEl.innerHTML = renderRulesText(prefixLines(card.t));
       textEl.style.cssText = 'font-size:var(--mbrw-font-size);font-weight:400;line-height:1.5;margin-top:6px;white-space:pre-wrap';
       panel.appendChild(textEl);
     }
 
+    // P/T footer — bottom-right corner (power/toughness, loyalty, or defense)
+    var ptHtml = cardPowerToughness(card);
+    if (ptHtml) {
+      var ptRow = doc.createElement('div');
+      ptRow.className = 'mbrw-pt-row';
+      ptRow.innerHTML = ptHtml;
+      ptRow.style.cssText = 'font-size:' + (settings.fontSize - 1) + 'px;margin-top:6px;text-align:right;line-height:1.2';
+      panel.appendChild(ptRow);
+    }
+
     var srcEl = doc.createElement('div');
-    srcEl.textContent = card._src === 'local' ? '📦 本地' : card._src === 'api' ? '🌐 mtgch' : '';
+    srcEl.textContent = card._src === 'local' ? '📦 本地' : card._src === 'api' ? '🌐 mtgch' : card._src === 'local+api' ? '📦+🌐' : '';
     srcEl.style.cssText = 'color:var(--mbrw-source-color);font-size:9px;margin-top:6px;text-align:right';
     panel.appendChild(srcEl);
+  }
+
+  // --- MTG mana-symbol rendering ------------------------------------------
+  // Glyphs come from the official Mana font (mana.andrewgioia.com). Known
+  // symbol → class map; anything unrecognized stays as literal {…} text.
+
+  var MANA_SPECIAL = {
+    't': 'tap', 'q': 'untap', 's': 's', 'x': 'x', 'y': 'y', 'z': 'z',
+    'e': 'e', '∞': 'infinity', '½': 'half', '1/2': 'half',
+    'chaos': 'chaos', '1000000': '1000000'
+  };
+
+  function manaClass(sym) {
+    var inner = String(sym || '').replace(/^\{/, '').replace(/\}$/, '').trim().toLowerCase();
+    if (!inner) return null;
+    if (MANA_SPECIAL[inner]) return 'ms-' + MANA_SPECIAL[inner];
+    // Hybrid "w/u", phyrexian "w/p", hybrid-phyrexian "w/u/p", generic hybrid "2/w",
+    // numbers "0".."20", "100", and the single colors w/u/b/r/g/c.
+    var cleaned = inner.replace(/[^a-z0-9]/g, '');
+    if (!cleaned || !/^[0-9wubrgpc]+$/.test(cleaned)) return null;
+    return 'ms-' + cleaned;
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // Turn a mana-cost string ("{2}{W}{W}") into icon spans (boxed, cost style).
+  function manaHtml(costText) {
+    if (!costText) return '';
+    return String(costText).replace(/\{[^}]+\}/g, function (m) {
+      var cls = manaClass(m);
+      return cls ? '<i class="ms ms-cost ' + cls + '"></i>' : escapeHtml(m);
+    });
+  }
+
+  // Rules text with inline mana symbols. v1.18.0 of the Mana font ships the
+  // glyphs as monochrome font faces; the color version is only reachable through
+  // the boxed .ms-cost class (e.g. .ms-cost.ms-w = white circle, .ms-cost.ms-u
+  // = blue circle), so rules-text symbols get the same cost treatment as the
+  // mana-cost row — which is also what a physical Magic card shows in its text.
+  function renderRulesText(text) {
+    var esc = escapeHtml(text);
+    return esc.replace(/\{[^}]+\}/g, function (m) {
+      var cls = manaClass(m);
+      return cls ? '<i class="ms ms-cost ' + cls + '"></i>' : m;
+    });
+  }
+
+  // P/T / loyalty / defense footer as plain text — "2/1", "*/4", "3" — no
+  // glyph icons (per user preference; the */* form reads like the card itself).
+  function cardPowerToughness(card) {
+    if (card.p != null && card.q != null) {
+      return escapeHtml(card.p) + '/' + escapeHtml(card.q);
+    }
+    if (card.l != null) return escapeHtml(card.l);
+    if (card.d != null) return escapeHtml(card.d);
+    return '';
   }
 
   function clearPanel() {
@@ -449,8 +592,10 @@
   var currentAnchor = null;
   var currentCardName = null;
   var currentSerial = 0;
+  var currentCard = null;
 
   function showPanel(anchorEl, card, cardNameEn) {
+    currentCard = card;
     renderPanel(card, cardNameEn);
     panel.style.display = 'block';
     panel.style.visibility = 'hidden';
@@ -465,12 +610,40 @@
     } catch (_e) { WARN('Panel diagnostic failed:', _e); }
   }
 
+  // Fill in oracle text (and cost/P/T) the local DB lacks, in the background.
+  // Fires only for cards genuinely missing rules text (not intentionally
+  // textless vanillas, which carry o=1). Results are cached, so each card costs
+  // the API exactly once across sessions.
+  function upgradeCard(cardName, serial) {
+    var key = String(cardName || '').trim().toLowerCase();
+    if (!key) return;
+    var cached = apiCache.get(key);
+    var done = function (result) {
+      if (!result || !result.t) return;
+      if (currentSerial !== serial || currentCardName !== cardName) return;
+      LOG('Upgraded:', result.n, 'text via mtgch');
+      var merged = entryToCard(result, 'local+api');
+      // Keep whatever the API didn't confirm (name/type) from the local entry.
+      if (!merged.n) merged.n = currentCard ? currentCard.n : result.n;
+      if (!merged.y && currentCard && currentCard.y) merged.y = currentCard.y;
+      if (!merged.c && currentCard && currentCard.c) merged.c = currentCard.c;
+      if (!merged.p && currentCard && currentCard.p) merged.p = currentCard.p;
+      if (!merged.q && currentCard && currentCard.q) merged.q = currentCard.q;
+      showPanel(currentAnchor, merged, cardName);
+    };
+    if (cached) { done(cached); return; }
+    setTimeout(function () {
+      queryMtgch(cardName).then(done).catch(function () {});
+    }, 60); // tiny stagger — the API is shared with the mtgch site
+  }
+
   function hidePanel() {
     stopFollowing();
     panel.style.display = 'none';
     panel.style.visibility = 'hidden';
     currentAnchor = null;
     currentCardName = null;
+    currentCard = null;
     panelOwner = null;
   }
 
@@ -529,6 +702,15 @@
 
   // --- DOM card detection --------------------------------------------------
 
+  function isValidCardName(a) {
+    if (!a) return false;
+    a = a.trim();
+    if (!a || a === 'Face-down card') return false;
+    if (/^\{[^}]+\}$/.test(a)) return false; // a mana symbol like {T} / {2}{W}
+    if (a.length < 2) return false;
+    return true;
+  }
+
   function findCardInDOM(target) {
     var el = target;
     for (var d = 0; d < 10 && el && el !== document.body; d++) {
@@ -569,6 +751,7 @@
       if (!result || currentSerial !== serial) return;
       LOG('Found:', result.n, '(' + (result._src || '?') + ')');
       showPanel(anchorEl, result, cardName);
+      if (!result.t && !result.o) upgradeCard(cardName, serial);
     }).catch(function (err) {
       WARN('Lookup failed:', err);
     });
@@ -629,7 +812,7 @@
     for (var i = 0; i < imgs.length; i++) {
       var a = imgs[i].getAttribute('alt') || '';
       a = a.trim();
-      if (a && a !== 'Face-down card') return a;
+      if (isValidCardName(a)) return a;
     }
     return '';
   }
@@ -660,7 +843,7 @@
     clearTimeout(hoverTimer);
     hoverTimer = setTimeout(function () {
       var cardName = img.alt.trim();
-      if (!cardName || cardName === 'Face-down card') return;
+      if (!isValidCardName(cardName)) return;
       presentCard(img, cardName);
     }, HOVER_DELAY_MS);
   }
@@ -700,7 +883,9 @@
     var keys = Object.keys(el);
     for (var i = 0; i < keys.length; i++) {
       var k = keys[i];
-      if (k.indexOf('__reactFiber$') === 0 || k.indexOf('__reactInternalInstance$') === 0) {
+      // React <18: __reactFiber$ / __reactInternalInstance$. React 19: the root
+      // container exposes __reactContainer$ pointing straight at the HostRootFiber.
+      if (k.indexOf('__reactFiber$') === 0 || k.indexOf('__reactInternalInstance$') === 0 || k.indexOf('__reactContainer$') === 0) {
         return el[k];
       }
     }
@@ -711,8 +896,17 @@
     var rootEl = document.querySelector('#root');
     if (!rootEl || !rootEl.firstElementChild) rootEl = document.body;
     var f = getFiberFromNode(rootEl) || getFiberFromNode(rootEl.firstElementChild);
+    // Fall back to the container key if the element probe missed it.
+    if (!f && rootEl) {
+      var ckeys = Object.keys(rootEl);
+      for (var i = 0; i < ckeys.length && !f; i++) {
+        if (ckeys[i].indexOf('__reactContainer$') === 0) f = rootEl[ckeys[i]];
+      }
+    }
     var guard = 0;
     while (f && f.return && guard++ < 2000) f = f.return;
+    if (!f) DIAG('getFiberRoot: no React fiber found (is the game mounted?)');
+    else DIAG('getFiberRoot: ok (top ' + (f.tag != null ? 'tag ' + f.tag : '?') + ')');
     return f;
   }
 
@@ -805,15 +999,23 @@
     var root = getFiberRoot();
     if (!root) return null;
     var result = null;
+    var walked = 0;
+    var snapshotsSeen = 0;
+    var firstSnapshot = null;
     walkFibers(root, function (f) {
+      walked++;
       var h = f.memoizedState, d = 0;
       while (h && d < 80) {
         var c = hookCandidates(h);
         for (var j = 0; j < c.length; j++) {
           var v = c[j];
-          if (isPreviewSnapshot(v) && v.card && v.card.zoneId === 'hand') {
-            result = { hand: v };
-            return true;
+          if (isPreviewSnapshot(v)) {
+            snapshotsSeen++;
+            if (!firstSnapshot) firstSnapshot = v;
+            if (v.card && v.card.zoneId === 'hand') {
+              result = { hand: v };
+              return true;
+            }
           }
           if (ids && typeof v === 'string' && ids.has(v)) {
             result = { stackId: v };
@@ -824,6 +1026,15 @@
       }
       return false;
     });
+    if (snapshotsSeen) {
+      var fs = firstSnapshot;
+      DIAG('scan: ' + walked + ' fibers, ' + snapshotsSeen + ' preview-snapshot(s), phase=' + fs.phase +
+        ', card=' + (fs.card ? ((fs.card.identity && fs.card.identity.name) || fs.card.name || '?') + ' zone=' + fs.card.zoneId : 'null') +
+        ', mousePos=' + (fs.mousePos ? fs.mousePos.x + ',' + fs.mousePos.y : '?') +
+        ' → ' + (result ? (result.hand ? 'HAND' : 'STACK') : 'none'));
+    } else {
+      DIAG('scan: ' + walked + ' fibers, no preview snapshot');
+    }
     return result;
   }
 
@@ -843,6 +1054,7 @@
       if (!result || currentSerial !== serial) return;
       LOG('Found:', result.n, '(' + (result._src || '?') + ')', '[fiber]');
       showPanel(rect, result, cardName);
+      if (!result.t && !result.o) upgradeCard(cardName, serial);
     }).catch(function (err) {
       WARN('Fiber lookup failed:', err);
     });
@@ -864,7 +1076,7 @@
         var hname = scan.hand.card.identity.name;
         var hrect = scan.hand.anchorRect || rectFromPoint(scan.hand.mousePos.x, scan.hand.mousePos.y);
         if (panelOwner === 'fiber' && currentCardName === hname && currentAnchor) currentAnchor = hrect;
-        else presentFiberCard(hname, hrect);
+        else { DIAG('poll: HAND hover → ' + hname); presentFiberCard(hname, hrect); }
         return true;
       }
 
@@ -875,13 +1087,13 @@
             var sname = o.identity.name;
             var srect = rectFromPoint(lastMouse.x, lastMouse.y);
             if (panelOwner === 'fiber' && currentCardName === sname && currentAnchor) currentAnchor = srect;
-            else presentFiberCard(sname, srect);
+            else { DIAG('poll: STACK hover → ' + sname); presentFiberCard(sname, srect); }
             return true;
           }
         }
       }
 
-      if (panelOwner === 'fiber') hidePanel();
+      if (panelOwner === 'fiber') { DIAG('poll: no hand/stack — hiding'); hidePanel(); }
       return !!gv;
     } catch (_err) {
       // Fiber introspection is best-effort — never break the DOM paths.
@@ -1026,6 +1238,7 @@
     loadSettings();
     loadApiCache();
     ensureStyleTag();
+    ensureManaCSS();
     ensurePanel();
 
     panel.addEventListener('mousedown', function (e) {
@@ -1054,7 +1267,7 @@
     startFiberPolling();
 
     updateMenuToggles();
-    LOG('v0.3.0 ready — MutationObserver + pointerover + fiber scan');
+    LOG('v0.5.0 ready — mana icons, cost top-right, P/T */*, local oracle DB, fiber scan + diag');
   }
 
   if (document.readyState === 'loading') {
