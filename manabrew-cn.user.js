@@ -3,7 +3,7 @@
 // @name:zh-CN   Manabrew 简体中文卡牌浮窗
 // @name:en      Manabrew Simplified Chinese Card Tooltip
 // @namespace    https://play.manabrew.app/
-// @version      0.2.1
+// @version      0.2.2
 // @description  在 Manabrew 悬停 MTG 卡牌时显示简体中文翻译浮窗
 // @description:zh-CN 在 Manabrew 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本。
 // @description:en Show Simplified Chinese card info on hover for Manabrew — card name, type, and rules text.
@@ -457,6 +457,12 @@
     if (settings.panelMode !== 'fixed') positionPanel(anchorEl);
     panel.style.visibility = 'visible';
     if (settings.panelMode === 'follow') startFollowing();
+    try {
+      var _r = panel.getBoundingClientRect();
+      LOG('Panel shown:', cardNameEn, '@', Math.round(_r.left) + ',' + Math.round(_r.top),
+        'size', Math.round(_r.width) + 'x' + Math.round(_r.height),
+        'inDoc', document.body.contains(panel));
+    } catch (_e) { WARN('Panel diagnostic failed:', _e); }
   }
 
   function hidePanel() {
@@ -583,14 +589,14 @@
 
   function onPreviewAdded(previewEl) {
     LOG('Preview appeared');
+    clearTimeout(hideTimer); // a replacement preview supersedes any pending hide
     tryShowFromPreview(previewEl, ++currentSerial, 0);
   }
 
   function tryShowFromPreview(previewEl, serial, attempt) {
     if (currentSerial !== serial) return;
 
-    var img = previewEl.querySelector('img');
-    var cardName = img && img.alt ? img.alt.trim() : '';
+    var cardName = extractCardName(previewEl);
     LOG('tryShow attempt', attempt, 'cardName:', cardName || '(none)');
 
     if (!cardName && attempt < 5) {
@@ -602,9 +608,29 @@
     presentCard(previewEl, cardName);
   }
 
+  function extractCardName(previewEl) {
+    // The preview stack renders several <img>s (low-res then high-res); the
+    // first may have empty alt. Prefer the img whose alt is a real card name.
+    var imgs = previewEl.querySelectorAll('img');
+    for (var i = 0; i < imgs.length; i++) {
+      var a = imgs[i].getAttribute('alt') || '';
+      a = a.trim();
+      if (a && a !== 'Face-down card') return a;
+    }
+    return '';
+  }
+
+  var hideTimer = null;
+
   function onPreviewRemoved() {
     LOG('Preview removed');
-    hidePanel();
+    // React re-mounts the preview portal while hovering (image loads, phase
+    // transitions). Don't blank the panel on every transient removal — only
+    // hide if no new preview replaces it within a short window.
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(function () {
+      hidePanel();
+    }, 200);
   }
 
   // --- Pointerover: DOM-rendered cards -------------------------------------
@@ -629,6 +655,11 @@
     if (!currentAnchor) return;
     if (settings.panelMode === 'fixed') return;
     if (e.relatedTarget && panel.contains(e.relatedTarget)) return;
+    // Only hide when the pointer actually leaves a DOM card; stray pointerout
+    // events (moving across the PixiJS canvas, preview churn) must not dismiss
+    // the panel.
+    var img = findCardInDOM(e.target);
+    if (!img) return;
     hidePanel();
   }
 
@@ -782,10 +813,10 @@
       root.addEventListener('scroll', repositionPanel, true);
     }
 
-    loadDB();
+    fetchAndLoadDB();
 
     updateMenuToggles();
-    LOG('v0.2.1 ready — MutationObserver + pointerover active');
+    LOG('v0.2.2 ready — MutationObserver + pointerover active');
   }
 
   if (document.readyState === 'loading') {
