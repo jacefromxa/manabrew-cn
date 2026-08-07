@@ -39,8 +39,9 @@ node scripts/build-zhs-db.mjs
 
 ## 调试
 
-v0.5.0 默认开启 fiber 扫描诊断日志（`[manabrew-cn:diag]`）。手牌/堆叠浮窗不工作时可看控制台：
+v0.6.0 默认开启 fiber 扫描诊断日志（`[manabrew-cn:diag]`）。手牌/堆叠浮窗不工作时可看控制台：
 
+- 手牌浮窗读取 BoardCanvas 的 `handHover` state（`{card, bounds}`）；堆叠浮窗读取 `hoveredStackObjectId`，通过 `gameView.stack` / `stackSpec` 解析卡名。诊断日志会打印 `scan → HAND/STACK …` 和 `poll: …`。
 - 控制台设 `localStorage['mbrw-cn-diag']='0'` 可关闭；`window.__MBRW_DIAG=true` 可重新开启。
 
 ## 许可

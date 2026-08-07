@@ -3,7 +3,7 @@
 // @name:zh-CN   Manabrew 简体中文卡牌浮窗
 // @name:en      Manabrew Simplified Chinese Card Tooltip
 // @namespace    https://play.manabrew.app/
-// @version      0.5.0
+// @version      0.6.0
 // @description  在 Manabrew 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。
 // @description:zh-CN 在 Manabrew 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
 // @description:en Show Simplified Chinese card info on hover for Manabrew — name, type, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
@@ -864,12 +864,12 @@
   // --- React fiber introspection: hand + battlefield-stack hover ------------
   // Battlefield cards surface through the [data-card-preview] portal. Hand cards
   // (HandController) and battlefield-stack cards (StackLayer) never render that
-  // portal, but manabrew still tracks them in React state: the useCardPreview
-  // machine snapshot holds hand cards (zoneId "hand", skipped by Game.tsx's
-  // render) and useStackUIStore holds the hovered stack object id. We read those
-  // by walking the React fiber tree. Best-effort: if the fiber layout changes in
-  // a future build these two tooltips silently stop while the DOM paths keep
-  // working.
+  // portal, but manabrew still tracks them in React state: BoardCanvas's
+  // handHover useState holds the hovered hand card ({card, bounds}) and the
+  // useStackUIStore / BoardOverlayCanvas state hold the hovered stack object id.
+  // We read those by walking the React fiber tree. Best-effort: if the fiber
+  // layout changes in a future build these two tooltips silently stop while the
+  // DOM paths keep working.
 
   var lastMouse = { x: 0, y: 0 };
   var panelOwner = null; // 'dom' = MutationObserver / pointerover, 'fiber' = this scanner
@@ -936,10 +936,17 @@
     return out;
   }
 
-  function isPreviewSnapshot(v) {
-    return !!v && typeof v === 'object' && typeof v.phase === 'string' &&
-      'card' in v && !!v.mousePos && typeof v.mousePos.x === 'number' &&
-      'anchorRect' in v && 'placement' in v;
+  // BoardCanvas's handHover useState holds the hovered hand card as
+  // { card, bounds }, fed by HandController.onHoverHandCard. It is the only
+  // React-visible hand signal: the CardPreviewMachine itself dismisses on hand
+  // hover (screenBounds has no `buttons`, so useCardPreview treats it as a
+  // drag and never opens), so a preview snapshot with zoneId "hand" never
+  // appears — we must read the handHover state instead.
+  function isHandHoverState(v) {
+    return !!v && typeof v === 'object' &&
+      !!v.card && !!v.card.identity && typeof v.card.identity.name === 'string' &&
+      !!v.bounds && typeof v.bounds.x === 'number' && typeof v.bounds.y === 'number' &&
+      typeof v.bounds.width === 'number' && typeof v.bounds.height === 'number';
   }
 
   function isGameView(v) {
@@ -986,55 +993,59 @@
     return null;
   }
 
-  // Single walk: find a hovered hand card (preview snapshot) or a hovered stack
-  // object id (a hook string matching gameView.stack ids), whichever comes first.
+  // Single walk: find a hovered hand card (BoardCanvas handHover state) or a
+  // hovered stack object (a hook string matching a stack object id — the id is
+  // a plain string in the useStackUIStore / BoardOverlayCanvas hooks). Stack
+  // card resolution falls back to the stackSpec prop's resolved cards when
+  // gameView is momentarily unavailable (getGameView's 2s backoff).
   function scanFiberHover(gameView) {
-    var ids = null;
+    var stackIndex = null;
     if (gameView && Array.isArray(gameView.stack) && gameView.stack.length) {
-      ids = new Set();
+      stackIndex = {};
       for (var i = 0; i < gameView.stack.length; i++) {
-        if (gameView.stack[i] && gameView.stack[i].id) ids.add(gameView.stack[i].id);
+        var so = gameView.stack[i];
+        if (!so) continue;
+        if (so.id) stackIndex[so.id] = so;
+        if (so.sourceId) stackIndex[so.sourceId] = so;
       }
     }
     var root = getFiberRoot();
     if (!root) return null;
     var result = null;
-    var walked = 0;
-    var snapshotsSeen = 0;
-    var firstSnapshot = null;
     walkFibers(root, function (f) {
-      walked++;
+      // Game.tsx passes stackSpec (resolved CardDtos) down to GameBoard /
+      // BoardOverlayCanvas, which also holds the hovered stack id — so a fiber
+      // with memoizedProps.stackSpec lets us resolve the hovered card directly.
+      var specCards = null;
+      if (f.memoizedProps && f.memoizedProps.stackSpec && Array.isArray(f.memoizedProps.stackSpec.cards)) {
+        specCards = f.memoizedProps.stackSpec.cards;
+      }
       var h = f.memoizedState, d = 0;
       while (h && d < 80) {
         var c = hookCandidates(h);
         for (var j = 0; j < c.length; j++) {
           var v = c[j];
-          if (isPreviewSnapshot(v)) {
-            snapshotsSeen++;
-            if (!firstSnapshot) firstSnapshot = v;
-            if (v.card && v.card.zoneId === 'hand') {
-              result = { hand: v };
-              return true;
-            }
-          }
-          if (ids && typeof v === 'string' && ids.has(v)) {
-            result = { stackId: v };
+          if (isHandHoverState(v)) {
+            result = { hand: { card: v.card, bounds: v.bounds } };
             return true;
+          }
+          if (typeof v === 'string') {
+            if (stackIndex && stackIndex[v]) { result = { stack: stackIndex[v] }; return true; }
+            if (specCards) {
+              for (var k = 0; k < specCards.length; k++) {
+                if (specCards[k] && specCards[k].id === v && specCards[k].card) {
+                  result = { stack: specCards[k].card };
+                  return true;
+                }
+              }
+            }
           }
         }
         h = h.next; d++;
       }
       return false;
     });
-    if (snapshotsSeen) {
-      var fs = firstSnapshot;
-      DIAG('scan: ' + walked + ' fibers, ' + snapshotsSeen + ' preview-snapshot(s), phase=' + fs.phase +
-        ', card=' + (fs.card ? ((fs.card.identity && fs.card.identity.name) || fs.card.name || '?') + ' zone=' + fs.card.zoneId : 'null') +
-        ', mousePos=' + (fs.mousePos ? fs.mousePos.x + ',' + fs.mousePos.y : '?') +
-        ' → ' + (result ? (result.hand ? 'HAND' : 'STACK') : 'none'));
-    } else {
-      DIAG('scan: ' + walked + ' fibers, no preview snapshot');
-    }
+    if (result) DIAG('scan → ' + (result.hand ? 'HAND ' + result.hand.card.identity.name : 'STACK ' + ((result.stack.identity && result.stack.identity.name) || result.stack.id || '?')));
     return result;
   }
 
@@ -1060,6 +1071,22 @@
     });
   }
 
+  function handRectFromBounds(hb) {
+    // handHover.bounds is in board-canvas coordinates; convert to viewport by
+    // adding the offset of the largest canvas (the board).
+    var best = null, bestArea = 0, i;
+    var canvases = document.querySelectorAll('canvas');
+    for (i = 0; i < canvases.length; i++) {
+      var w = canvases[i].width, h = canvases[i].height;
+      if (w * h > bestArea) { bestArea = w * h; best = canvases[i]; }
+    }
+    var r = best ? best.getBoundingClientRect() : null;
+    if (r && r.width > 0) {
+      return { left: r.left + hb.x, top: r.top + hb.y, width: hb.width, height: hb.height };
+    }
+    return rectFromPoint(lastMouse.x, lastMouse.y);
+  }
+
   function pollFiberHover() {
     try {
       // When a data-card-preview portal is live, the MutationObserver path owns
@@ -1074,22 +1101,20 @@
 
       if (scan && scan.hand && scan.hand.card && scan.hand.card.identity && scan.hand.card.identity.name) {
         var hname = scan.hand.card.identity.name;
-        var hrect = scan.hand.anchorRect || rectFromPoint(scan.hand.mousePos.x, scan.hand.mousePos.y);
+        var hrect = handRectFromBounds(scan.hand.bounds);
         if (panelOwner === 'fiber' && currentCardName === hname && currentAnchor) currentAnchor = hrect;
         else { DIAG('poll: HAND hover → ' + hname); presentFiberCard(hname, hrect); }
         return true;
       }
 
-      if (scan && scan.stackId && gv && Array.isArray(gv.stack)) {
-        for (var i = 0; i < gv.stack.length; i++) {
-          var o = gv.stack[i];
-          if (o && o.id === scan.stackId && o.identity && o.identity.name) {
-            var sname = o.identity.name;
-            var srect = rectFromPoint(lastMouse.x, lastMouse.y);
-            if (panelOwner === 'fiber' && currentCardName === sname && currentAnchor) currentAnchor = srect;
-            else { DIAG('poll: STACK hover → ' + sname); presentFiberCard(sname, srect); }
-            return true;
-          }
+      if (scan && scan.stack) {
+        var so = scan.stack;
+        var sname = (so.identity && so.identity.name) || (so.card && so.card.identity && so.card.identity.name);
+        if (sname) {
+          var srect = rectFromPoint(lastMouse.x, lastMouse.y);
+          if (panelOwner === 'fiber' && currentCardName === sname && currentAnchor) currentAnchor = srect;
+          else { DIAG('poll: STACK hover → ' + sname); presentFiberCard(sname, srect); }
+          return true;
         }
       }
 
@@ -1267,7 +1292,7 @@
     startFiberPolling();
 
     updateMenuToggles();
-    LOG('v0.5.0 ready — mana icons, cost top-right, P/T */*, local oracle DB, fiber scan + diag');
+    LOG('v0.6.0 ready — hand/stack tooltips via handHover state + stack-id fiber scan');
   }
 
   if (document.readyState === 'loading') {
