@@ -3,7 +3,7 @@
 // @name:zh-CN   Manabrew 简体中文卡牌浮窗
 // @name:en      Manabrew Simplified Chinese Card Tooltip
 // @namespace    https://play.manabrew.app/
-// @version      0.8.0
+// @version      0.9.0
 // @description  在 Manabrew 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。
 // @description:zh-CN 在 Manabrew 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
 // @description:en Show Simplified Chinese card info on hover for Manabrew — name, type, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
@@ -48,8 +48,24 @@
   // --- Settings -----------------------------------------------------------
 
   var SETTINGS_DEFAULTS = {
+    // 底色 / 边框：RGB 三元组（给 rgba() 用）+ 各自透明度
+    bgColor: '26, 28, 33',
     bgOpacity: 0.94,
-    fontSize: 13,
+    borderColor: '255, 255, 255',
+    borderOpacity: 0.18,
+    // 每个文字区块的颜色（hex）与字号（上限 30px）
+    nameColor: '#ffad42',
+    nameSize: 15,        // 法术力费用与卡名同行，共用此字号
+    enNameColor: '#71717a',
+    enNameSize: 10,
+    typeColor: '#a1a1aa',
+    typeSize: 12,
+    textColor: '#d4d4d8',
+    textSize: 13,
+    ptColor: '#d4d4d8',
+    ptSize: 12,
+    sourceColor: '#52525b',
+    sourceSize: 9,
     panelMode: 'follow',
     panelPosition: null,
   };
@@ -60,7 +76,11 @@
     try {
       if (typeof GM_getValue === 'function') {
         var raw = GM_getValue('mbrw-cn-settings', null);
-        if (raw) Object.assign(settings, typeof raw === 'string' ? JSON.parse(raw) : raw);
+        if (raw) {
+          // 旧存档只有 bgOpacity/fontSize/panelMode 等字段——用默认值补齐
+          // 新版本逐区块字段，避免出现 undefined 样式。
+          settings = Object.assign({}, SETTINGS_DEFAULTS, typeof raw === 'string' ? JSON.parse(raw) : raw);
+        }
       }
     } catch (_) {}
   }
@@ -71,9 +91,24 @@
     } catch (_) {}
   }
 
-  function resetSettings() {
-    settings = Object.assign({}, SETTINGS_DEFAULTS);
-    saveSettings();
+  // 存储的 "R, G, B" 三元组 → #rrggbb（原生颜色选择器只接受 hex）。
+  function rgbToHex(rgb) {
+    var parts = String(rgb || '').match(/\d+/g) || ['26', '28', '33'];
+    var hex = '#';
+    for (var i = 0; i < 3; i++) {
+      var n = parseInt(parts[i] || 0, 10);
+      hex += ('0' + n.toString(16)).slice(-2);
+    }
+    return hex;
+  }
+
+  // #rrggbb → "R, G, B" 三元组（存进设置供 rgba() 使用）。
+  function hexToRgb(hex) {
+    var h = String(hex || '').replace('#', '');
+    if (h.length === 3) h = h.charAt(0) + h.charAt(0) + h.charAt(1) + h.charAt(1) + h.charAt(2) + h.charAt(2);
+    var n = parseInt(h, 16);
+    if (isNaN(n)) return '26, 28, 33';
+    return [n >> 16 & 255, n >> 8 & 255, n & 255].join(', ');
   }
 
   // --- Stylesheet ---------------------------------------------------------
@@ -88,17 +123,27 @@
     writeStyleTag();
   }
 
-  function writeStyleTag() {
+  // 把所有可调样式写成 :root 上的 CSS 变量。浮窗面板与设置弹窗里的预览框
+  // 都读同一组变量，因此任何改动立即同时生效（同 talishar-cn 的做法）。
+  function applyStyleVariables(vars) {
     if (!styleTag) return;
     styleTag.textContent = ':root {' +
-      '--mbrw-bg-opacity:' + settings.bgOpacity + ';' +
-      '--mbrw-border:rgba(255,255,255,0.18);' +
-      '--mbrw-text-color:#d4d4d8;' +
-      '--mbrw-name-color:#ffad42;' +
-      '--mbrw-type-color:#a1a1aa;' +
-      '--mbrw-en-name-color:#71717a;' +
-      '--mbrw-source-color:#52525b;' +
-      '--mbrw-font-size:' + settings.fontSize + 'px;' +
+      '--mbrw-bg-color:' + (vars.bgColor || '26, 28, 33') + ';' +
+      '--mbrw-bg-opacity:' + (vars.bgOpacity != null ? vars.bgOpacity : 0.94) + ';' +
+      '--mbrw-border-color:' + (vars.borderColor || '255, 255, 255') + ';' +
+      '--mbrw-border-opacity:' + (vars.borderOpacity != null ? vars.borderOpacity : 0.18) + ';' +
+      '--mbrw-name-color:' + (vars.nameColor || '#ffad42') + ';' +
+      '--mbrw-name-size:' + (vars.nameSize || 15) + 'px;' +
+      '--mbrw-en-name-color:' + (vars.enNameColor || '#71717a') + ';' +
+      '--mbrw-en-name-size:' + (vars.enNameSize || 10) + 'px;' +
+      '--mbrw-type-color:' + (vars.typeColor || '#a1a1aa') + ';' +
+      '--mbrw-type-size:' + (vars.typeSize || 12) + 'px;' +
+      '--mbrw-text-color:' + (vars.textColor || '#d4d4d8') + ';' +
+      '--mbrw-text-size:' + (vars.textSize || 13) + 'px;' +
+      '--mbrw-pt-color:' + (vars.ptColor || '#d4d4d8') + ';' +
+      '--mbrw-pt-size:' + (vars.ptSize || 12) + 'px;' +
+      '--mbrw-source-color:' + (vars.sourceColor || '#52525b') + ';' +
+      '--mbrw-source-size:' + (vars.sourceSize || 9) + 'px;' +
       '}' +
       '#mbrw-cn-panel::-webkit-scrollbar{width:4px}' +
       '#mbrw-cn-panel::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:2px}' +
@@ -107,6 +152,10 @@
       '#mbrw-cn-panel .ms{filter:drop-shadow(0 0 0.4px rgba(0,0,0,0.55));}' +
       '#mbrw-cn-panel .mbrw-cost-row .ms{font-size:1.05em;vertical-align:middle;margin-right:2px;}' +
       '#mbrw-cn-panel .mbrw-rules .ms{font-size:0.95em;vertical-align:middle;margin-right:1px;}';
+  }
+
+  function writeStyleTag() {
+    applyStyleVariables(settings);
   }
 
   // Inject the official MTG mana font (https://mana.andrewgioia.com). One-time,
@@ -388,7 +437,7 @@
     if (panel) return;
     panel = document.createElement('div');
     panel.id = 'mbrw-cn-panel';
-    panel.style.cssText = 'position:fixed;left:0;top:0;z-index:2147483647;display:none;visibility:hidden;max-width:320px;max-height:50vh;overflow:auto;padding:9px 11px;border:1px solid var(--mbrw-border);border-radius:6px;background:rgba(26,28,33,var(--mbrw-bg-opacity));color:var(--mbrw-text-color);box-shadow:0 4px 18px rgba(0,0,0,.45);pointer-events:none;font:13px/1.5 system-ui,-apple-system,sans-serif';
+    panel.style.cssText = 'position:fixed;left:0;top:0;z-index:2147483647;display:none;visibility:hidden;max-width:320px;max-height:50vh;overflow:auto;padding:9px 11px;border:1px solid rgba(var(--mbrw-border-color),var(--mbrw-border-opacity));border-radius:6px;background:rgba(var(--mbrw-bg-color),var(--mbrw-bg-opacity));color:var(--mbrw-text-color);box-shadow:0 4px 18px rgba(0,0,0,.45);pointer-events:none;font:13px/1.5 system-ui,-apple-system,sans-serif';
 
     dragHandle = document.createElement('div');
     dragHandle.textContent = '⠯ ⠯ ⠯';
@@ -472,27 +521,27 @@
     nameCol.style.cssText = 'min-width:0;flex:1';
     var nameEl = doc.createElement('div');
     nameEl.textContent = card.n;
-    nameEl.style.cssText = 'color:var(--mbrw-name-color);font-size:' + (settings.fontSize + 2) + 'px;font-weight:700;line-height:1.25';
+    nameEl.style.cssText = 'color:var(--mbrw-name-color);font-size:var(--mbrw-name-size);font-weight:700;line-height:1.25';
     nameCol.appendChild(nameEl);
     header.appendChild(nameCol);
     if (card.c) {
       var costEl = doc.createElement('div');
       costEl.className = 'mbrw-cost-row';
       costEl.innerHTML = manaHtml(card.c);
-      costEl.style.cssText = 'font-size:' + (settings.fontSize + 2) + 'px;line-height:1.25;white-space:nowrap;margin-top:1px';
+      costEl.style.cssText = 'font-size:var(--mbrw-name-size);line-height:1.25;white-space:nowrap;margin-top:1px';
       header.appendChild(costEl);
     }
     panel.appendChild(header);
 
     var enEl = doc.createElement('div');
     enEl.textContent = cardNameEn;
-    enEl.style.cssText = 'color:var(--mbrw-en-name-color);font-size:' + (settings.fontSize - 3) + 'px;margin-top:2px';
+    enEl.style.cssText = 'color:var(--mbrw-en-name-color);font-size:var(--mbrw-en-name-size);margin-top:2px';
     panel.appendChild(enEl);
 
     if (card.y) {
       var typeEl = doc.createElement('div');
       typeEl.textContent = card.y;
-      typeEl.style.cssText = 'color:var(--mbrw-type-color);font-size:' + (settings.fontSize - 1) + 'px;font-style:italic;font-weight:300;margin-top:3px';
+      typeEl.style.cssText = 'color:var(--mbrw-type-color);font-size:var(--mbrw-type-size);font-style:italic;font-weight:300;margin-top:3px';
       panel.appendChild(typeEl);
     }
 
@@ -502,7 +551,7 @@
       // Escape first, then substitute mana symbols with icon spans — the only
       // HTML that reaches innerHTML is the <i class="ms …"> we insert.
       textEl.innerHTML = renderRulesText(prefixLines(card.t));
-      textEl.style.cssText = 'font-size:var(--mbrw-font-size);font-weight:400;line-height:1.5;margin-top:6px;white-space:pre-wrap';
+      textEl.style.cssText = 'color:var(--mbrw-text-color);font-size:var(--mbrw-text-size);font-weight:400;line-height:1.5;margin-top:6px;white-space:pre-wrap';
       panel.appendChild(textEl);
     }
 
@@ -512,13 +561,13 @@
       var ptRow = doc.createElement('div');
       ptRow.className = 'mbrw-pt-row';
       ptRow.innerHTML = ptHtml;
-      ptRow.style.cssText = 'font-size:' + (settings.fontSize - 1) + 'px;margin-top:6px;text-align:right;line-height:1.2';
+      ptRow.style.cssText = 'color:var(--mbrw-pt-color);font-size:var(--mbrw-pt-size);margin-top:6px;text-align:right;line-height:1.2';
       panel.appendChild(ptRow);
     }
 
     var srcEl = doc.createElement('div');
     srcEl.textContent = card._src === 'local' ? '📦 本地' : card._src === 'api' ? '🌐 mtgch' : card._src === 'local+api' ? '📦+🌐' : '';
-    srcEl.style.cssText = 'color:var(--mbrw-source-color);font-size:9px;margin-top:6px;text-align:right';
+    srcEl.style.cssText = 'color:var(--mbrw-source-color);font-size:var(--mbrw-source-size);margin-top:6px;text-align:right';
     panel.appendChild(srcEl);
   }
 
@@ -610,25 +659,51 @@
     } catch (_e) { WARN('Panel diagnostic failed:', _e); }
   }
 
-  // Fill in oracle text (and cost/P/T) the local DB lacks, in the background.
-  // Fires only for cards genuinely missing rules text (not intentionally
-  // textless vanillas, which carry o=1). Results are cached, so each card costs
-  // the API exactly once across sessions.
+  // True when the current card is missing info the mtgch API could supply:
+  // rules text (and the card isn't an intentionally textless vanilla, o=1), a
+  // mana cost on a non-land, or the stat line on a creature / planeswalker
+  // (P/T or loyalty). magic-cards-zhs oracle carries no cost/P/T at all, so a
+  // creature whose English name failed the MTGJSON faceName match is exactly
+  // the case this catches — local data then gets its basic info filled in
+  // from mtgch in the background.
+  function cardNeedsUpgrade(card) {
+    if (!card) return false;
+    var y = String(card.y || '');
+    var isLand = /地|Land/.test(y);
+    var isToken = /衍生/.test(y); // tokens have no mana cost by nature
+    var hasStatLine = /生物|Creature|鹏洛客|Planeswalker/.test(y);
+    if (!card.t && !card.o) return true; // missing rules text
+    if (!card.c && !isLand && !isToken) return true; // missing mana cost on a non-land, non-token
+    if (hasStatLine && card.p == null && card.q == null && card.l == null && card.d == null) return true;
+    return false;
+  }
+
+  // Fill in oracle text / cost / P/T the local DB lacks, in the background.
+  // Fires whenever cardNeedsUpgrade() is true, not only for missing text.
+  // Only missing fields are merged in (local name/type/text win), so nothing
+  // local is ever overwritten. Results are cached, so each card costs the API
+  // exactly once across sessions.
   function upgradeCard(cardName, serial) {
     var key = String(cardName || '').trim().toLowerCase();
     if (!key) return;
     var cached = apiCache.get(key);
     var done = function (result) {
-      if (!result || !result.t) return;
+      if (!result) return;
       if (currentSerial !== serial || currentCardName !== cardName) return;
-      LOG('Upgraded:', result.n, 'text via mtgch');
-      var merged = entryToCard(result, 'local+api');
-      // Keep whatever the API didn't confirm (name/type) from the local entry.
-      if (!merged.n) merged.n = currentCard ? currentCard.n : result.n;
-      if (!merged.y && currentCard && currentCard.y) merged.y = currentCard.y;
-      if (!merged.c && currentCard && currentCard.c) merged.c = currentCard.c;
-      if (!merged.p && currentCard && currentCard.p) merged.p = currentCard.p;
-      if (!merged.q && currentCard && currentCard.q) merged.q = currentCard.q;
+      var cur = currentCard || {};
+      var merged = Object.assign({}, cur);
+      var changed = false;
+      if (!merged.t && result.t) { merged.t = result.t; changed = true; }
+      if (!merged.y && result.y) { merged.y = result.y; changed = true; }
+      if (!merged.c && result.c) { merged.c = result.c; changed = true; }
+      if (merged.p == null && result.p != null) { merged.p = result.p; changed = true; }
+      if (merged.q == null && result.q != null) { merged.q = result.q; changed = true; }
+      if (merged.l == null && result.l != null) { merged.l = result.l; changed = true; }
+      if (merged.d == null && result.d != null) { merged.d = result.d; changed = true; }
+      if (!merged.n) { merged.n = result.n || cardName; changed = true; }
+      if (!changed) return; // API had nothing this card was missing
+      merged._src = cur._src === 'local' ? 'local+api' : (result._src || cur._src || '');
+      LOG('Upgraded:', merged.n, '(missing fields from mtgch)');
       showPanel(currentAnchor, merged, cardName);
     };
     if (cached) { done(cached); return; }
@@ -769,7 +844,7 @@
       if (!result || currentSerial !== serial) return;
       LOG('Found:', result.n, '(' + (result._src || '?') + ')');
       showPanel(anchorEl, result, cardName);
-      if (!result.t && !result.o) upgradeCard(cardName, serial);
+      if (cardNeedsUpgrade(result)) upgradeCard(cardName, serial);
     }).catch(function (err) {
       WARN('Lookup failed:', err);
     });
@@ -1118,7 +1193,7 @@
       if (!result || currentSerial !== serial) return;
       LOG('Found:', result.n, '(' + (result._src || '?') + ')', '[fiber]');
       showPanel(rect, result, cardName);
-      if (!result.t && !result.o) upgradeCard(cardName, serial);
+      if (cardNeedsUpgrade(result)) upgradeCard(cardName, serial);
     }).catch(function (err) {
       WARN('Fiber lookup failed:', err);
     });
@@ -1196,90 +1271,292 @@
 
     settingsOverlay = doc.createElement('div');
     settingsOverlay.id = 'mbrw-cn-settings-overlay';
-    settingsOverlay.style.cssText = 'position:fixed;inset:0;z-index:2147483646;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center';
+    settingsOverlay.style.cssText = 'position:fixed;inset:0;z-index:2147483646;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center';
     settingsOverlay.addEventListener('click', function (e) { if (e.target === settingsOverlay) closeSettings(); });
 
     var box = doc.createElement('div');
-    box.style.cssText = 'background:#1e1f24;border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:20px 24px;max-width:340px;width:90%;color:#d4d4d8;font:13px/1.5 system-ui,sans-serif;box-shadow:0 8px 32px rgba(0,0,0,.5)';
+    box.id = 'mbrw-cn-settings-dialog';
+    box.style.cssText = 'background:#1a1d24;color:#e0e0e0;border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:14px 16px;width:340px;max-width:calc(100vw - 20px);max-height:90vh;overflow-y:auto;font:13px/1.4 system-ui,sans-serif;box-shadow:0 8px 32px rgba(0,0,0,.5)';
+    box.addEventListener('click', function (e) { e.stopPropagation(); });
 
-    box.innerHTML = [
-      '<div style="font-size:16px;font-weight:700;margin-bottom:16px;color:#ffad42;">⚙ Manabrew CN 设置</div>',
-      '<div id="mbrw-cn-preview-box" style="padding:8px 10px;margin-bottom:14px;border-radius:6px;',
-      'background:rgba(26,28,33,' + settings.bgOpacity + ');border:1px solid rgba(255,255,255,0.18);',
-      'font-size:' + settings.fontSize + 'px;">',
-      '<div style="color:#ffad42;font-size:' + (settings.fontSize + 2) + 'px;font-weight:700;">中文卡名</div>',
-      '<div style="color:#71717a;font-size:' + (settings.fontSize - 3) + 'px;">English Card Name</div>',
-      '<div style="color:#a1a1aa;font-size:' + (settings.fontSize - 1) + 'px;font-style:italic;">生物 ～人类</div>',
-      '<div style="margin-top:4px;">· 示例效果文本。</div>',
-      '</div>',
-      '<label style="display:block;margin-bottom:10px;">',
-      '<span>背景透明度: <span id="mbrw-cn-opacity-val">' + Math.round(settings.bgOpacity * 100) + '</span>%</span>',
-      '<input type="range" id="mbrw-cn-opacity" min="20" max="100" value="' + Math.round(settings.bgOpacity * 100) + '" style="width:100%;margin-top:2px;">',
-      '</label>',
-      '<label style="display:block;margin-bottom:14px;">',
-      '<span>字体大小: <span id="mbrw-cn-fontsize-val">' + settings.fontSize + '</span>px</span>',
-      '<input type="range" id="mbrw-cn-fontsize" min="10" max="20" value="' + settings.fontSize + '" style="width:100%;margin-top:2px;">',
-      '</label>',
-      '<div style="margin-bottom:14px;">',
-      '<span style="margin-right:8px;">面板模式:</span>',
-      '<button id="mbrw-cn-mode-follow" style="margin-right:4px;padding:4px 12px;border-radius:4px;border:1px solid rgba(255,255,255,0.15);',
-      'background:' + (settings.panelMode === 'follow' ? '#3a3d45' : 'transparent') + ';color:#d4d4d8;cursor:pointer;">跟随</button>',
-      '<button id="mbrw-cn-mode-fixed" style="padding:4px 12px;border-radius:4px;border:1px solid rgba(255,255,255,0.15);',
-      'background:' + (settings.panelMode === 'fixed' ? '#3a3d45' : 'transparent') + ';color:#d4d4d8;cursor:pointer;">固定</button>',
-      '</div>',
-      '<div style="display:flex;gap:8px;justify-content:flex-end;">',
-      '<button id="mbrw-cn-reset" style="padding:6px 14px;border-radius:4px;border:1px solid rgba(255,255,255,0.12);background:transparent;color:#a1a1aa;cursor:pointer;">默认</button>',
-      '<button id="mbrw-cn-cancel" style="padding:6px 14px;border-radius:4px;border:1px solid rgba(255,255,255,0.12);background:transparent;color:#d4d4d8;cursor:pointer;">取消</button>',
-      '<button id="mbrw-cn-save" style="padding:6px 16px;border-radius:4px;border:none;background:#ffad42;color:#1a1c21;font-weight:600;cursor:pointer;">保存</button>',
-      '</div>',
-    ].join('\n');
+    // --- 标题 + 实时预览框（与浮窗共用同一组 CSS 变量） ---
+
+    var title = doc.createElement('div');
+    title.textContent = '⚙ Manabrew CN 设置';
+    title.style.cssText = 'font-size:16px;font-weight:700;margin-bottom:10px;color:#ffad42;';
+    box.appendChild(title);
+
+    var previewLabel = doc.createElement('div');
+    previewLabel.textContent = '效果预览';
+    previewLabel.style.cssText = 'font-size:11px;font-weight:600;color:#888;margin-bottom:4px;';
+    box.appendChild(previewLabel);
+
+    var preview = doc.createElement('div');
+    preview.id = 'mbrw-cn-preview-box';
+    preview.style.cssText = 'margin-bottom:10px;padding:8px 10px;border-radius:6px;border:1px solid rgba(var(--mbrw-border-color),var(--mbrw-border-opacity));background:rgba(var(--mbrw-bg-color),var(--mbrw-bg-opacity));color:var(--mbrw-text-color);';
+
+    var previewHeader = doc.createElement('div');
+    previewHeader.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;gap:10px;';
+    var previewName = doc.createElement('div');
+    previewName.textContent = '中文卡名';
+    previewName.style.cssText = 'min-width:0;flex:1;color:var(--mbrw-name-color);font-size:var(--mbrw-name-size);font-weight:700;line-height:1.25;';
+    var previewCost = doc.createElement('div');
+    previewCost.className = 'mbrw-cost-row';
+    previewCost.innerHTML = manaHtml('{2}{W}{W}');
+    previewCost.style.cssText = 'font-size:var(--mbrw-name-size);line-height:1.25;white-space:nowrap;';
+    previewHeader.appendChild(previewName);
+    previewHeader.appendChild(previewCost);
+    preview.appendChild(previewHeader);
+
+    var previewEn = doc.createElement('div');
+    previewEn.textContent = 'English Card Name';
+    previewEn.style.cssText = 'color:var(--mbrw-en-name-color);font-size:var(--mbrw-en-name-size);margin-top:2px;';
+    preview.appendChild(previewEn);
+
+    var previewType = doc.createElement('div');
+    previewType.textContent = '生物 ～人类';
+    previewType.style.cssText = 'color:var(--mbrw-type-color);font-size:var(--mbrw-type-size);font-style:italic;font-weight:300;margin-top:3px;';
+    preview.appendChild(previewType);
+
+    var previewText = doc.createElement('div');
+    previewText.textContent = '· 示例效果文本。';
+    previewText.style.cssText = 'color:var(--mbrw-text-color);font-size:var(--mbrw-text-size);line-height:1.5;margin-top:4px;white-space:pre-wrap;';
+    preview.appendChild(previewText);
+
+    var previewPt = doc.createElement('div');
+    previewPt.textContent = '3/3';
+    previewPt.style.cssText = 'color:var(--mbrw-pt-color);font-size:var(--mbrw-pt-size);margin-top:4px;text-align:right;';
+    preview.appendChild(previewPt);
+
+    var previewSrc = doc.createElement('div');
+    previewSrc.textContent = '📦 本地';
+    previewSrc.style.cssText = 'color:var(--mbrw-source-color);font-size:var(--mbrw-source-size);margin-top:2px;text-align:right;';
+    preview.appendChild(previewSrc);
+
+    box.appendChild(preview);
+
+    // --- 表单控件辅助函数 ---
+
+    function makeRow(label) {
+      var row = doc.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:5px;';
+      var lbl = doc.createElement('span');
+      lbl.textContent = label;
+      lbl.style.cssText = 'flex:0 0 auto;font-size:12px;';
+      row.appendChild(lbl);
+      return row;
+    }
+
+    // 原生颜色选择器铺在色块上，点击即弹出取色器；色块实时镜像所选颜色。
+    function makeColorSwatch(value, onChange) {
+      var wrap = doc.createElement('span');
+      wrap.style.cssText = 'position:relative;display:inline-block;width:22px;height:22px;flex:0 0 auto;';
+      var swatch = doc.createElement('span');
+      swatch.style.cssText = 'position:absolute;inset:0;border-radius:4px;background-color:' + value + ';border:1px solid rgba(255,255,255,.35);pointer-events:none;';
+      var input = doc.createElement('input');
+      input.type = 'color';
+      input.value = value;
+      input.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:none;padding:0;';
+      input.addEventListener('input', function () {
+        swatch.style.backgroundColor = input.value;
+        onChange(input.value);
+      });
+      wrap.appendChild(swatch);
+      wrap.appendChild(input);
+      return { wrap: wrap, input: input, swatch: swatch };
+    }
+
+    function makeRange(value, onChange) {
+      var wrap = doc.createElement('span');
+      wrap.style.cssText = 'display:flex;align-items:center;gap:5px;';
+      var input = doc.createElement('input');
+      input.type = 'range';
+      input.min = '0';
+      input.max = '1';
+      input.step = '0.05';
+      input.value = String(value);
+      input.style.width = '84px';
+      var val = doc.createElement('span');
+      val.textContent = String(value);
+      val.style.cssText = 'font-size:11px;min-width:28px;text-align:right;';
+      input.addEventListener('input', function () {
+        val.textContent = String(parseFloat(input.value).toFixed(2));
+        onChange(parseFloat(input.value));
+      });
+      wrap.appendChild(input);
+      wrap.appendChild(val);
+      return { wrap: wrap, input: input };
+    }
+
+    // 字号输入：上限 30px（与 talishar-cn 一致）。
+    function makeNumber(value, onChange) {
+      var wrap = doc.createElement('span');
+      wrap.style.cssText = 'display:flex;align-items:center;gap:3px;';
+      var input = doc.createElement('input');
+      input.type = 'number';
+      input.min = '8';
+      input.max = '30';
+      input.value = String(value);
+      input.style.cssText = 'width:50px;background:#2a2d35;color:#e0e0e0;border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:2px 5px;font-size:12px;';
+      input.addEventListener('input', function () {
+        var v = parseInt(input.value, 10);
+        if (!isNaN(v)) onChange(Math.min(30, Math.max(8, v)));
+      });
+      var px = doc.createElement('span');
+      px.textContent = 'px';
+      px.style.cssText = 'font-size:11px;color:#888;';
+      wrap.appendChild(input);
+      wrap.appendChild(px);
+      return { wrap: wrap, input: input };
+    }
+
+    function sectionTitle(text) {
+      var t = doc.createElement('div');
+      t.textContent = text;
+      t.style.cssText = 'font-size:11px;font-weight:600;color:#888;margin:6px 0 4px;';
+      return t;
+    }
+
+    // --- 底色与边框 ---
+
+    box.appendChild(sectionTitle('底色与边框'));
+
+    var bgRow = makeRow('底色');
+    var bgColorField = makeColorSwatch(rgbToHex(settings.bgColor), function () { previewChanges(); });
+    var bgOpacityField = makeRange(settings.bgOpacity, function () { previewChanges(); });
+    bgRow.appendChild(bgColorField.wrap);
+    bgRow.appendChild(bgOpacityField.wrap);
+
+    var borderRow = makeRow('边框');
+    var borderColorField = makeColorSwatch(rgbToHex(settings.borderColor), function () { previewChanges(); });
+    var borderOpacityField = makeRange(settings.borderOpacity, function () { previewChanges(); });
+    borderRow.appendChild(borderColorField.wrap);
+    borderRow.appendChild(borderOpacityField.wrap);
+
+    box.appendChild(bgRow);
+    box.appendChild(borderRow);
+
+    // --- 每个文字区块：颜色 + 字号 ---
+
+    box.appendChild(sectionTitle('文字区块'));
+
+    function makeFontRow(label, colorValue, sizeValue) {
+      var row = makeRow(label);
+      var colorField = makeColorSwatch(colorValue, function () { previewChanges(); });
+      var sizeField = makeNumber(sizeValue, function () { previewChanges(); });
+      row.appendChild(colorField.wrap);
+      row.appendChild(sizeField.wrap);
+      return { row: row, colorField: colorField, sizeField: sizeField };
+    }
+
+    var nameFont = makeFontRow('卡名', settings.nameColor, settings.nameSize);
+    var enNameFont = makeFontRow('英文卡名', settings.enNameColor, settings.enNameSize);
+    var typeFont = makeFontRow('类别行', settings.typeColor, settings.typeSize);
+    var textFont = makeFontRow('规则文本', settings.textColor, settings.textSize);
+    var ptFont = makeFontRow('攻防', settings.ptColor, settings.ptSize);
+    var sourceFont = makeFontRow('来源脚注', settings.sourceColor, settings.sourceSize);
+
+    box.appendChild(nameFont.row);
+    box.appendChild(enNameFont.row);
+    box.appendChild(typeFont.row);
+    box.appendChild(textFont.row);
+    box.appendChild(ptFont.row);
+    box.appendChild(sourceFont.row);
+
+    // --- 面板模式提示（唯一开关在脚本菜单里，这里仅展示当前状态） ---
+
+    var modeHint = doc.createElement('div');
+    modeHint.style.cssText = 'font-size:11px;color:#888;margin:4px 0 6px;';
+    box.appendChild(modeHint);
+    function refreshModeHint() {
+      modeHint.textContent = '面板模式：' + (settings.panelMode === 'fixed' ? '固定' : '跟随') +
+        '（通过脚本菜单的「固定浮窗」开关切换）';
+    }
+    refreshModeHint();
+
+    // --- 读取当前控件值 → 设置对象 ---
+
+    function readFieldValues() {
+      var out = {};
+      out.bgColor = hexToRgb(bgColorField.input.value);
+      out.borderColor = hexToRgb(borderColorField.input.value);
+      out.bgOpacity = parseFloat(bgOpacityField.input.value);
+      out.borderOpacity = parseFloat(borderOpacityField.input.value);
+      out.nameColor = nameFont.colorField.input.value;
+      out.nameSize = parseInt(nameFont.sizeField.input.value, 10);
+      out.enNameColor = enNameFont.colorField.input.value;
+      out.enNameSize = parseInt(enNameFont.sizeField.input.value, 10);
+      out.typeColor = typeFont.colorField.input.value;
+      out.typeSize = parseInt(typeFont.sizeField.input.value, 10);
+      out.textColor = textFont.colorField.input.value;
+      out.textSize = parseInt(textFont.sizeField.input.value, 10);
+      out.ptColor = ptFont.colorField.input.value;
+      out.ptSize = parseInt(ptFont.sizeField.input.value, 10);
+      out.sourceColor = sourceFont.colorField.input.value;
+      out.sourceSize = parseInt(sourceFont.sizeField.input.value, 10);
+      return out;
+    }
+
+    // 实时预览：任何改动立即重写 CSS 变量，浮窗与上面的预览框同时更新。
+    function previewChanges() {
+      applyStyleVariables(readFieldValues());
+    }
+
+    // --- 按钮 ---
+
+    var buttonRow = doc.createElement('div');
+    buttonRow.style.cssText = 'display:flex;gap:6px;justify-content:flex-end;margin-top:8px;';
+
+    function makeButton(text, primary) {
+      var btn = doc.createElement('button');
+      btn.textContent = text;
+      btn.style.cssText = [
+        'padding:5px 12px;border-radius:5px;border:1px solid rgba(255,255,255,.15);',
+        'cursor:pointer;font-size:12px;',
+        primary
+          ? 'background:#ffad42;color:#111;border-color:#ffad42;font-weight:600;'
+          : 'background:transparent;color:#ccc;',
+      ].join('');
+      return btn;
+    }
+
+    var resetBtn = makeButton('恢复默认', false);
+    var cancelBtn = makeButton('取消', false);
+    var saveBtn = makeButton('保存', true);
+
+    buttonRow.appendChild(resetBtn);
+    buttonRow.appendChild(cancelBtn);
+    buttonRow.appendChild(saveBtn);
+    box.appendChild(buttonRow);
+
+    resetBtn.addEventListener('click', function () {
+      settings = Object.assign({}, SETTINGS_DEFAULTS);
+      saveSettings();
+      applyStyleVariables(settings);
+      applyPanelMode();
+      closeSettings();
+      openSettings(); // 以默认值重新打开
+    });
+
+    cancelBtn.addEventListener('click', function () {
+      applyStyleVariables(settings); // 还原已保存的样式
+      closeSettings();
+    });
+
+    saveBtn.addEventListener('click', function () {
+      var newVals = readFieldValues();
+      // 保留非样式字段（面板模式/位置由脚本菜单控制）
+      newVals.panelMode = settings.panelMode;
+      newVals.panelPosition = settings.panelPosition;
+      settings = newVals;
+      saveSettings();
+      applyStyleVariables(settings);
+      applyPanelMode();
+      closeSettings();
+    });
 
     settingsOverlay.appendChild(box);
     doc.body.appendChild(settingsOverlay);
-
-    var opacitySlider = doc.getElementById('mbrw-cn-opacity');
-    var opacityVal = doc.getElementById('mbrw-cn-opacity-val');
-    var fontSizeSlider = doc.getElementById('mbrw-cn-fontsize');
-    var fontSizeVal = doc.getElementById('mbrw-cn-fontsize-val');
-    var previewBox = doc.getElementById('mbrw-cn-preview-box');
-
-    function updatePreview() {
-      var op = parseInt(opacitySlider.value, 10) / 100;
-      var fs = parseInt(fontSizeSlider.value, 10);
-      opacityVal.textContent = Math.round(op * 100);
-      fontSizeVal.textContent = fs;
-      previewBox.style.background = 'rgba(26,28,33,' + op + ')';
-      previewBox.style.fontSize = fs + 'px';
-    }
-
-    opacitySlider.addEventListener('input', updatePreview);
-    fontSizeSlider.addEventListener('input', updatePreview);
-
-    doc.getElementById('mbrw-cn-mode-follow').addEventListener('click', function () {
-      doc.getElementById('mbrw-cn-mode-follow').style.background = '#3a3d45';
-      doc.getElementById('mbrw-cn-mode-fixed').style.background = 'transparent';
-    });
-    doc.getElementById('mbrw-cn-mode-fixed').addEventListener('click', function () {
-      doc.getElementById('mbrw-cn-mode-fixed').style.background = '#3a3d45';
-      doc.getElementById('mbrw-cn-mode-follow').style.background = 'transparent';
-    });
-
-    doc.getElementById('mbrw-cn-reset').addEventListener('click', function () {
-      resetSettings();
-      applyPanelMode();
-      closeSettings();
-    });
-    doc.getElementById('mbrw-cn-cancel').addEventListener('click', closeSettings);
-    doc.getElementById('mbrw-cn-save').addEventListener('click', function () {
-      var followBtn = doc.getElementById('mbrw-cn-mode-follow');
-      settings.bgOpacity = parseInt(opacitySlider.value, 10) / 100;
-      settings.fontSize = parseInt(fontSizeSlider.value, 10);
-      settings.panelMode = followBtn.style.background === 'transparent' ? 'fixed' : 'follow';
-      saveSettings();
-      applyPanelMode();
-      updateMenuToggles();
-      closeSettings();
-    });
 
     doc.addEventListener('keydown', function onEsc(e) {
       if (e.key === 'Escape') { closeSettings(); doc.removeEventListener('keydown', onEsc); }
@@ -1291,23 +1568,35 @@
   }
 
   // --- GM menu commands ----------------------------------------------------
+  //
+  // 传 `{id}` 而非字符串，Tampermonkey ≥5.0.6189 与 Violentmonkey ≥2.16.0 会原地
+  // 更新同 id 的菜单项——之前的字符串写法被当作 accessKey，每次调用都会新增
+  // 一条菜单项，于是每次点击开关都会「冒出另一个开关」。现在同 id 覆盖，菜单里
+  // 始终只有一条「固定浮窗」开关（唯一的有效开关）。
+
+  function registerMenuCommand(label, handler, id, autoClose) {
+    if (typeof GM_registerMenuCommand !== 'function') return;
+    try {
+      GM_registerMenuCommand(label, handler, {
+        id: id,
+        autoClose: autoClose !== false,
+      });
+    } catch (_) { /* GM menu not available */ }
+  }
 
   function updateMenuToggles() {
-    try {
-      if (typeof GM_registerMenuCommand === 'function') {
-        GM_registerMenuCommand(
-          (settings.panelMode === 'fixed' ? '☑' : '☐') + ' 固定浮窗',
-          function () {
-            settings.panelMode = settings.panelMode === 'fixed' ? 'follow' : 'fixed';
-            saveSettings();
-            applyPanelMode();
-            updateMenuToggles();
-          },
-          'mbrw-cn-menu-pin'
-        );
-        GM_registerMenuCommand('⚙ 样式设置', openSettings, 'mbrw-cn-menu-style');
-      }
-    } catch (_) {}
+    registerMenuCommand(
+      (settings.panelMode === 'fixed' ? '☑ ' : '☐ ') + '固定浮窗',
+      function () {
+        settings.panelMode = settings.panelMode === 'fixed' ? 'follow' : 'fixed';
+        saveSettings();
+        applyPanelMode();
+        updateMenuToggles();
+      },
+      'mbrw-cn-menu-pin',
+      false
+    );
+    registerMenuCommand('⚙ 样式设置', openSettings, 'mbrw-cn-menu-style');
   }
 
   // --- Init ---------------------------------------------------------------
@@ -1345,7 +1634,7 @@
     startFiberPolling();
 
     updateMenuToggles();
-    LOG('v0.8.0 ready — reliable deck-editor preview tooltip (live preview observer)');
+    LOG('v0.9.0 ready — expandable styles, single fixed-mode switch, local cards auto-fill cost/P/T');
   }
 
   if (document.readyState === 'loading') {
