@@ -3,7 +3,7 @@
 // @name:zh-CN   Manabrew 简体中文卡牌浮窗
 // @name:en      Manabrew Simplified Chinese Card Tooltip
 // @namespace    https://play.manabrew.app/
-// @version      0.9.3
+// @version      0.9.4
 // @description  在 Manabrew 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。
 // @description:zh-CN 在 Manabrew 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
 // @description:en Show Simplified Chinese card info on hover for Manabrew — name, type, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
@@ -790,7 +790,9 @@
     // auto-hidden. pointerout, preview teardown, and the fiber poll all call
     // hidePanel — in fixed mode those are no-ops (otherwise the pinned panel
     // vanishes as soon as you stop hovering a card / the preview remounts).
-    // It only goes away when the mode is switched back to follow.
+    // If the cursor stops hovering, the panel keeps showing the last card's
+    // translation until the next hover triggers a refresh. It only goes away
+    // when the mode is switched back to follow.
     if (settings.panelMode === 'fixed') return;
     stopFollowing();
     panel.style.display = 'none';
@@ -869,26 +871,34 @@
     var el = target;
     for (var d = 0; d < 10 && el && el !== document.body; d++) {
       if (el.nodeType !== 1) { el = el.parentElement; continue; }
-      // Direct check: is this element or a child a card image?
-      var img;
       if (el.tagName === 'IMG') {
-        img = el;
-      } else if (el.querySelector) {
-        img = el.querySelector('img');
-      }
-      if (img && img.alt && img.alt !== 'Face-down card' && img.src && img.src.indexOf('scryfall') !== -1) {
-        return img;
-      }
-      // Card container class patterns
-      if (el.className && typeof el.className === 'string') {
-        var cn = el.className;
-        if (cn.indexOf('rounded-lg') !== -1 || cn.indexOf('bg-card') !== -1 || cn.indexOf('DraftCard') !== -1) {
-          if (img && img.alt && img.src && img.src.indexOf('scryfall') !== -1) return img;
-        }
+        if (isCardImage(el)) return el;
+      } else if (el.querySelector && isCardContainer(el)) {
+        var img = el.querySelector('img');
+        if (isCardImage(img)) return img;
       }
       el = el.parentElement;
     }
     return null;
+  }
+
+  // Only probe for a card image inside a container that LOOKS like a card (a
+  // card tile / deck card / draft pick). Probing every ancestor with
+  // querySelector('img') made hovering BLANK space inside a big page layout
+  // (a deck grid, a scroll list) resolve to the FIRST card image anywhere in
+  // that container — the tooltip then showed the first deck's cover card
+  // ("希望之光尼科") no matter where the cursor actually was. Card-shaped
+  // containers never span the whole page, so restricting the probe to them
+  // keeps deck-card / card-tile hover working while empty-space hover matches
+  // nothing.
+  function isCardContainer(el) {
+    var cn = el.className && typeof el.className === 'string' ? el.className : '';
+    return cn.indexOf('rounded-lg') !== -1 || cn.indexOf('bg-card') !== -1 ||
+           cn.indexOf('DraftCard') !== -1 || cn.indexOf('rounded-xl') !== -1;
+  }
+
+  function isCardImage(img) {
+    return !!img && img.alt && img.alt !== 'Face-down card' && img.src && img.src.indexOf('scryfall') !== -1;
   }
 
   // Deck covers on the selection page (/play/offline/constructed) are card
@@ -1744,7 +1754,7 @@
     startFiberPolling();
 
     updateMenuToggles();
-    LOG('v0.9.3 ready — fixed panel no longer auto-hides + identity-aware exact /card/{SET}/{CN} lookup');
+    LOG('v0.9.4 ready — empty-space hover on deck lists no longer snaps to the first card; fixed panel keeps the last hovered card and never auto-hides');
   }
 
   if (document.readyState === 'loading') {
