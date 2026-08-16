@@ -1,4 +1,4 @@
-# Greasy Fork 提交文档 — Manabrew 简体中文卡牌浮窗
+# Greasy Fork 提交文档 — 万智牌中文悬浮翻译助手
 
 > 发布站点：https://greasyfork.org/zh-CN
 > 提交前请在 Greasy Fork 页面选择「用户脚本 → 提交用户脚本」。
@@ -9,10 +9,10 @@
 
 | 字段 | 值 |
 |------|-----|
-| **名称 (Name)** | `Manabrew 简体中文卡牌浮窗` |
+| **名称 (Name)** | `万智牌中文悬浮翻译助手` |
 | **命名空间 (Namespace)** | `https://play.manabrew.app/` |
 | **简介 (Description / Synopsis)** | 在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。 |
-| **版本 (Version)** | `1.1.0` |
+| **版本 (Version)** | `1.2.0` |
 | **作者 (Author)** | `jacefromxa` |
 | **许可 (License)** | `GPL-3.0` |
 | **适用站点 (Match)** | `https://play.manabrew.app/*`、`https://www.mtggoldfish.com/*`、`https://mtggoldfish.com/*`、`https://www.mtgdecks.net/*`、`https://mtgdecks.net/*`、`https://scryfall.com/*`、`https://edhrec.com/*`、`https://moxfield.com/*`、`https://www.mtgtop8.com/*`、`https://mtgtop8.com/*` |
@@ -77,11 +77,13 @@ Tampermonkey / Violentmonkey 菜单 → **⚙ 样式设置**：
 
 ### 常见问题
 
-- **浮窗不显示？** 确认脚本已在 Tampermonkey 中启用、页面为上述三个站点之一；按 F12 查看控制台 `[manabrew-cn]` 日志定位原因。
+- **浮窗不显示？** 确认脚本已在 Tampermonkey 中启用、页面为上述七个站点之一；按 F12 查看控制台 `[mtg-cn]` 日志定位原因。
 - **想关掉调试日志？** 控制台执行 `localStorage['mbrw-cn-diag']='0'`，或设置 `window.__MBRW_DIAG=false`。
 - **某张牌翻译缺失？** 属于本地库未收录的稀有卡，脚本会自动回退 API；若 API 也没有则显示英文原名（翻译暂缺）。
 
 ### 更新日志
+
+- **v1.2.0** — 脚本更名 **万智牌中文悬浮翻译助手**（旧名「Manabrew 简体中文卡牌浮窗」）；控制台日志前缀改为 `[mtg-cn]`；更新简介中的支持站点清单（Manabrew / MTGGoldfish / MTGDecks.net / Scryfall / EDHREC / Moxfield / MTGTop8）。注意：更名后 Greasy Fork / 油猴按「名称+命名空间」识别脚本，旧安装不会自动更新，需重新安装（或删除旧脚本后装新版）。
 
 - **v1.1.0** — 新增 **Scryfall、EDHREC、Moxfield、MTGTop8** 四个站点支持（卡名悬停 + 卡图悬停）：Scryfall 卡页大图/标题/列表链接（卡页 URL 直接提供系列码+编号）、EDHREC 卡名链接/卡图、Moxfield 牌组列表卡名/卡图（锚定其原生悬停预览面板）、MTGTop8 牌组行（从 `AffCard(V)` 参数解析系列码+编号，兼容 classic/visual 两种牌表变体）。浮窗默认显示在卡图**右侧**、空间不足换左侧；跨站请求改走 `GM_xmlhttpRequest`（无则回退 `fetch`），突破 Scryfall 等严格 CSP 站点的 `connect-src` 限制。
 - **v1.0.2** — 修复 MTGGoldfish **纯卡图悬停只显示英文名 + 系列码**的问题：价格页等处的卡图 `alt` 带 `[FDN]` 这类系列码后缀（如 `alt="Spectral Sailor [FDN]"`），查询前新增 `cleanCardName` 清洗注解（方括号一律剥离，仅剥离末尾的 `(F)/(FOIL)/(数字)` 标记，带括号的真卡名如「B.F.M. (Big Furry Monster)」不受影响），本地库命中后正常显示中文翻译。

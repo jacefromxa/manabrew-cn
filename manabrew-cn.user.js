@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         Manabrew 简体中文卡牌浮窗
-// @name:zh-CN   Manabrew 简体中文卡牌浮窗
-// @name:en      Manabrew Simplified Chinese Card Tooltip
+// @name         万智牌中文悬浮翻译助手
+// @name:zh-CN   万智牌中文悬浮翻译助手
+// @name:en      MTG Chinese Hover Translation Assistant
 // @namespace    https://play.manabrew.app/
-// @version      1.1.0
+// @version      1.2.0
 // @description  在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。
 // @description:zh-CN 在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
 // @description:en Show Simplified Chinese card info on hover for Manabrew, MTGGoldfish, MTGDecks.net, Scryfall, EDHREC, Moxfield and MTGTop8 — name, type, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
@@ -36,17 +36,17 @@
 
   var root = window;
   var LOG = function () {
-    try { console.log.apply(console, ['[manabrew-cn]'].concat(Array.prototype.slice.call(arguments))); } catch (_) {}
+    try { console.log.apply(console, ['[mtg-cn]'].concat(Array.prototype.slice.call(arguments))); } catch (_) {}
   };
   var WARN = function () {
-    try { console.warn.apply(console, ['[manabrew-cn]'].concat(Array.prototype.slice.call(arguments))); } catch (_) {}
+    try { console.warn.apply(console, ['[mtg-cn]'].concat(Array.prototype.slice.call(arguments))); } catch (_) {}
   };
   // Verbose fiber-introspection diagnostics. Flip on for debugging the hand /
   // stack tooltips (v0.4.0 ships with it enabled; set window.__MBRW_DIAG=false
   // or localStorage['mbrw-cn-diag']='0' to quiet the console).
   var DIAG = function () {
     if (root.__MBRW_DIAG !== false) {
-      try { console.log.apply(console, ['[manabrew-cn:diag]'].concat(Array.prototype.slice.call(arguments))); } catch (_) {}
+      try { console.log.apply(console, ['[mtg-cn:diag]'].concat(Array.prototype.slice.call(arguments))); } catch (_) {}
     }
   };
   try {

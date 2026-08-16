@@ -47,14 +47,15 @@
 
 <h2>常见问题</h2>
 <ul>
-  <li><strong>浮窗不显示？</strong>确认脚本已在 Tampermonkey 中启用、页面为上述站点之一；按 F12 查看控制台 <code>[manabrew-cn]</code> 日志定位原因。</li>
+  <li><strong>浮窗不显示？</strong>确认脚本已在 Tampermonkey 中启用、页面为上述站点之一；按 F12 查看控制台 <code>[mtg-cn]</code> 日志定位原因。</li>
   <li><strong>想关掉调试日志？</strong>控制台执行 <code>localStorage['mbrw-cn-diag']='0'</code>，或设置 <code>window.__MBRW_DIAG=false</code>。</li>
   <li><strong>某张牌翻译缺失？</strong>属于本地库未收录的稀有卡，脚本会自动回退 API；若 API 也没有则显示英文原名（翻译暂缺）。</li>
 </ul>
 
 <h2>更新日志</h2>
 <ul>
-  <li><strong>v1.1.0</strong> — 新增 <strong>Scryfall、EDHREC、Moxfield、MTGTop8</strong> 四个站点支持（卡名悬停 + 卡图悬停）：Scryfall 卡页大图 / 标题 / 列表链接（卡页 URL 直接提供系列码 + 编号）、EDHREC 卡名链接 / 卡图、Moxfield 牌组列表卡名 / 卡图（锚定其原生悬停预览面板）、MTGTop8 牌组行（从 <code>AffCard(V)</code> 参数解析系列码 + 编号，兼容 classic / visual 两种牌表变体）。浮窗默认显示在卡图<strong>右侧</strong>、空间不足换左侧；跨站请求改走 <code>GM_xmlhttpRequest</code>（无则回退 <code>fetch</code>），突破 Scryfall 等严格 CSP 站点的 <code>connect-src</code> 限制。</li>
+    <li><strong>v1.2.0</strong> — 脚本更名 <strong>万智牌中文悬浮翻译助手</strong>（旧名「Manabrew 简体中文卡牌浮窗」）；控制台日志前缀改为 <code>[mtg-cn]</code>；更新简介中的支持站点清单（Manabrew / MTGGoldfish / MTGDecks.net / Scryfall / EDHREC / Moxfield / MTGTop8）。注意：更名后 Greasy Fork / 油猴按「名称 + 命名空间」识别脚本，旧安装不会自动更新，需重新安装（或删除旧脚本后装新版）。</li>
+<li><strong>v1.1.0</strong> — 新增 <strong>Scryfall、EDHREC、Moxfield、MTGTop8</strong> 四个站点支持（卡名悬停 + 卡图悬停）：Scryfall 卡页大图 / 标题 / 列表链接（卡页 URL 直接提供系列码 + 编号）、EDHREC 卡名链接 / 卡图、Moxfield 牌组列表卡名 / 卡图（锚定其原生悬停预览面板）、MTGTop8 牌组行（从 <code>AffCard(V)</code> 参数解析系列码 + 编号，兼容 classic / visual 两种牌表变体）。浮窗默认显示在卡图<strong>右侧</strong>、空间不足换左侧；跨站请求改走 <code>GM_xmlhttpRequest</code>（无则回退 <code>fetch</code>），突破 Scryfall 等严格 CSP 站点的 <code>connect-src</code> 限制。</li>
   <li><strong>v1.0.2</strong> — 修复 MTGGoldfish <strong>纯卡图悬停只显示英文名 + 系列码</strong>的问题：价格页等处的卡图 <code>alt</code> 带 <code>[FDN]</code> 这类系列码后缀（如 <code>alt="Spectral Sailor [FDN]"</code>），查询前新增 <code>cleanCardName</code> 清洗注解（方括号一律剥离，仅剥离末尾的 <code>(F)/(FOIL)/(数字)</code> 标记，带括号的真卡名如「B.F.M. (Big Furry Monster)」不受影响），本地库命中后正常显示中文翻译。</li>
   <li><strong>v1.0.1</strong> — MTGGoldfish 两项改进：① 浮窗默认摆放在站点卡图弹层的<strong>右侧</strong>（右→左→下→上换边，空间不足才换方向）；② 支持<strong>纯卡图</strong>悬停——只显示卡图没有卡名文本的地方（牌组 Visual 视图、文章卡图瓦片等）也能显示中文翻译（从 <code>alt</code> 取卡名，UUID 图源不含系列码时按名查询）。</li>
   <li><strong>v1.0.0</strong> — 新增 <strong>MTGGoldfish</strong>（mtggoldfish.com）与 <strong>MTGDecks.net</strong>（mtgdecks.net）支持：悬停卡名链接 / 卡图即可显示同一套中文浮窗。从链接属性解析系列码 + 编号（MTGGoldfish：<code>data-card-id</code> + <code>/price/</code> href；MTGDecks：卡图 URL），未命中本地库时直接走 mtgch 精确端点；MTGGoldfish 上浮窗锚定站点自带的卡图弹层并摆放在其旁边（左→右→下→上换边，绝不遮挡卡图），MTGDecks 上默认在卡牌左侧；MTGGoldfish Turbo 页面切换后浮窗自动重建。</li>

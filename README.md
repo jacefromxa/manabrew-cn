@@ -1,6 +1,6 @@
-# manabrew-cn
+# 万智牌中文悬浮翻译助手（manabrew-cn）
 
-> 万智牌简体中文卡牌悬停翻译浮窗（Manabrew / MTGGoldfish / MTGDecks.net / Scryfall / EDHREC / Moxfield / MTGTop8）
+> 万智牌简体中文卡牌悬停翻译浮窗，支持 Manabrew / MTGGoldfish / MTGDecks.net / Scryfall / EDHREC / Moxfield / MTGTop8 七个站点
 
 在 [Manabrew](https://play.manabrew.app/)、[MTGGoldfish](https://www.mtggoldfish.com/)、[MTGDecks.net](https://mtgdecks.net/)、[Scryfall](https://scryfall.com/)、[EDHREC](https://edhrec.com/)、[Moxfield](https://moxfield.com/) 与 [MTGTop8](https://www.mtgtop8.com/) 悬停万智牌卡牌时，自动在预览大图旁显示简体中文翻译浮窗——卡名、类别、规则文本，并带 **法术力费用**（右上角，与牌名同行）、**攻防**（右下角，`*/*` 文本形式，含忠诚度/防御）和 **彩色 MTG 符号图标**（`{W}`、`{T}`、`{2/W}` 等，正文规则文本同样使用彩色图标）。
 
@@ -22,7 +22,7 @@
 
 1. 安装 [Tampermonkey](https://www.tampermonkey.net/) 或 [Violentmonkey](https://violentmonkey.github.io/)
 2. 点击 [`manabrew-cn.user.js`](manabrew-cn.user.js) → 用户脚本管理器应提示安装
-3. 访问 https://play.manabrew.app/play/offline/constructed → 悬停战场/手牌/堆叠卡牌即可看到中文翻译；或访问 https://www.mtggoldfish.com/ 、https://mtgdecks.net/ 悬停任意卡名/卡图
+3. 访问 https://play.manabrew.app/play/offline/constructed → 悬停战场/手牌/堆叠卡牌即可看到中文翻译；或访问 https://www.mtggoldfish.com/ 、https://mtgdecks.net/ 、https://scryfall.com/ 、https://edhrec.com/ 、https://moxfield.com/ 、https://www.mtgtop8.com/ 悬停任意卡名/卡图
 
 ## 数据来源
 
@@ -35,7 +35,7 @@
 | MTGJSON `AtomicCards.json` | 法术力费用、攻防/忠诚度/防御，以及官方中文文本兜底 |
 | Scryfall `is:token`（`scripts/fetch-tokens.mjs` 抓取） | 衍生物 token 的攻防/费用（~600 名，构建时一次性；MTGJSON 不含 token） |
 
-少数未翻译卡牌（约 900 张）悬停时回退到 [mtgch.com API](https://mtgch.com/api/v1/docs)，结果自动缓存到本地。v0.9.2 起，能拿到卡牌身份（系列码 + 编号）的路径——手牌、堆叠、牌组封面、预览大图，以及 v1.0.0 起 **MTGGoldfish / MTGDecks.net 的卡名链接**（分别从 `data-card-id`+`/price/` href 与卡图 URL 解析）——未命中本地库时优先走 mtgch **精确端点** `/api/v1/card/{SET}/{CN}`：单次请求即返回全部字段，且按身份精确定位，零"按名模糊搜索"的错牌风险（带后缀编号等 404 场景自动回退到模糊搜索兜底）。此外，若某张**本地牌**的规则文本、费用或攻防任一字段缺失（如新系列中 MTGJSON 名称匹配不上的生物），也会在悬停时后台向 mtgch API 补齐缺失字段——本地已有的卡名/文本/类别不会被覆盖，每张牌仅首次请求一次、结果长期缓存。
+少数未翻译卡牌（约 900 张）悬停时回退到 [mtgch.com API](https://mtgch.com/api/v1/docs)，结果自动缓存到本地。能拿到卡牌身份（系列码 + 编号）的路径——Manabrew 手牌、堆叠、牌组封面、预览大图，MTGGoldfish 的 `data-card-id` + `/price/` href，MTGDecks 的卡图 URL，Scryfall 卡页 URL `/card/{set}/{num}/`，MTGTop8 的 `AffCard(V)` 参数——未命中本地库时优先走 mtgch **精确端点** `/api/v1/card/{SET}/{CN}`：单次请求即返回全部字段，且按身份精确定位，零"按名模糊搜索"的错牌风险（带后缀编号等 404 场景自动回退到模糊搜索兜底）。此外，若某张**本地牌**的规则文本、费用或攻防任一字段缺失（如新系列中 MTGJSON 名称匹配不上的生物），也会在悬停时后台向 mtgch API 补齐缺失字段——本地已有的卡名/文本/类别不会被覆盖，每张牌仅首次请求一次、结果长期缓存。
 
 MTG 符号图标由 [mana-font](https://mana.andrewgioia.com/) 提供（CDN 加载，浏览器缓存）。
 
@@ -62,12 +62,12 @@ node scripts/build-zhs-db.mjs
 
 ## 调试
 
-v0.6.0 默认开启 fiber 扫描诊断日志（`[manabrew-cn:diag]`）。手牌/堆叠浮窗不工作时可看控制台：
+v0.6.0 默认开启 fiber 扫描诊断日志（`[mtg-cn:diag]`）。手牌/堆叠浮窗不工作时可看控制台：
 
 - 手牌浮窗读取 BoardCanvas 的 `handHover` state（`{card, bounds}`）；堆叠浮窗读取 `hoveredStackObjectId`，通过 `gameView.stack` / `stackSpec` 解析卡名。诊断日志会打印 `scan → HAND/STACK …` 和 `poll: …`。
 - 牌组封面悬停解析：预览图 alt 是牌组名，脚本从 React fiber 的 `cover` prop 取封面卡名（主将），日志打印 `Deck cover → …`。
 - 牌组编辑器预览（v0.8.0）：manabrew 复用一个已挂载的 `data-card-preview`，卡牌切换时仅原地换图。脚本用 `live preview observer` 监听其内部变化（卡牌切换、图片晚到均触发），日志打印 `Preview card → …`。
-- MTGGoldfish / MTGDecks（v1.0.0）：悬停卡名/卡图时日志打印 `Site card → 卡名 (SET/编号)`，未解析出身份时只打印卡名（走模糊搜索兜底）。
+- MTGGoldfish / MTGDecks（v1.0.0）、Scryfall / EDHREC / Moxfield / MTGTop8（v1.1.0）：悬停卡名/卡图时日志打印 `Site card → 卡名 (SET/编号)`，未解析出身份时只打印卡名（走模糊搜索兜底）。
 - 控制台设 `localStorage['mbrw-cn-diag']='0'` 可关闭；`window.__MBRW_DIAG=true` 可重新开启。
 
 ## 许可
