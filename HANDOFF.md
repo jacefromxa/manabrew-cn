@@ -40,8 +40,10 @@
 | `c53988f` | v1.2.0 | 更名「万智牌中文悬浮翻译助手」；日志前缀 `[mtg-cn]` |
 | `2307984` | v1.3.0 | CubeCobra 支持（卡名行/卡图/原生弹层锚定） |
 | `d520447` | v1.4.0 | Moxfield 跟随鼠标（修复 NaN 定位）；先右后左统一（MTGDecks 同）；EDHREC 文章内嵌卡名 |
+| `58b8121` | v1.4.1 | 修复 Scryfall 浮窗全透明（GM_addStyle + CSSOM 兜底，CSP 拦截 style）；EDHREC 文章卡名部分触发（`/commanders/` 链接 + `.edhrecp__link` 包装器匹配） |
 
 **已发布到 Greasy Fork**：591633 已发布 v1.4.0；旧脚本 590313 已删除（redirect → 591633）。
+**⚠️ 待办**：v1.4.1 已提交但 Greasy Fork 尚未发布（会话结束时 greasyfork.org 网络持续断连）。发布步骤：登录 → 脚本 591633 → 「更新」→ 粘贴 `manabrew-cn.user.js` 全文 → changelog 填 v1.4.1 说明 → 发布。
 
 ## 四、仓库结构
 
