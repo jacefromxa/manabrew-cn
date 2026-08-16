@@ -1,8 +1,8 @@
 # 万智牌中文悬浮翻译助手（manabrew-cn）
 
-> 万智牌简体中文卡牌悬停翻译浮窗，支持 Manabrew / MTGGoldfish / MTGDecks.net / Scryfall / EDHREC / Moxfield / MTGTop8 七个站点
+> 万智牌简体中文卡牌悬停翻译浮窗，支持 Manabrew / MTGGoldfish / MTGDecks.net / Scryfall / EDHREC / Moxfield / MTGTop8 / CubeCobra 八个站点
 
-在 [Manabrew](https://play.manabrew.app/)、[MTGGoldfish](https://www.mtggoldfish.com/)、[MTGDecks.net](https://mtgdecks.net/)、[Scryfall](https://scryfall.com/)、[EDHREC](https://edhrec.com/)、[Moxfield](https://moxfield.com/) 与 [MTGTop8](https://www.mtgtop8.com/) 悬停万智牌卡牌时，自动在预览大图旁显示简体中文翻译浮窗——卡名、类别、规则文本，并带 **法术力费用**（右上角，与牌名同行）、**攻防**（右下角，`*/*` 文本形式，含忠诚度/防御）和 **彩色 MTG 符号图标**（`{W}`、`{T}`、`{2/W}` 等，正文规则文本同样使用彩色图标）。
+在 [Manabrew](https://play.manabrew.app/)、[MTGGoldfish](https://www.mtggoldfish.com/)、[MTGDecks.net](https://mtgdecks.net/)、[Scryfall](https://scryfall.com/)、[EDHREC](https://edhrec.com/)、[Moxfield](https://moxfield.com/)、[MTGTop8](https://www.mtgtop8.com/) 与 [CubeCobra](https://cubecobra.com/) 悬停万智牌卡牌时，自动在预览大图旁显示简体中文翻译浮窗——卡名、类别、规则文本，并带 **法术力费用**（右上角，与牌名同行）、**攻防**（右下角，`*/*` 文本形式，含忠诚度/防御）和 **彩色 MTG 符号图标**（`{W}`、`{T}`、`{2/W}` 等，正文规则文本同样使用彩色图标）。
 
 ## 支持站点
 
@@ -15,8 +15,9 @@
 | [EDHREC](https://edhrec.com/) | 悬停卡名链接（`/cards/{slug}`）、卡图（`card-images.edhrec.com`）、卡页标题 | — |
 | [Moxfield](https://moxfield.com/) | 悬停牌组列表卡名（`a.table-deck-row-link`）或卡图（`assets.moxfield.net/cards`） | 有原生悬停预览面板，浮窗锚定预览并摆放在其左侧（右侧空间不足时） |
 | [MTGTop8](https://www.mtgtop8.com/) | 悬停牌组列表行（`.deck_line` / `AffCard(V)` 行） | 从 `AffCard(V)` 参数解析系列码 + 编号（带数字系列码如 MH2 靠 mtgch 名字门禁兜底） |
+| [CubeCobra](https://cubecobra.com/) | 悬停牌组/列表卡名行（`.list-group-card`）、卡图（`assets.cubecobra.com/cardimages`）、搜索页卡图 | 有原生悬停弹层（`#autocardPopup`），浮窗锚定弹层摆放在其右侧（空间不足换左侧/上下） |
 
-七个站点共用同一套翻译数据库、mtgch API 回退、样式设置与固定浮窗开关。浮窗默认显示在卡牌/卡图**右侧**（空间不足换左侧，有原生卡图弹层的站点锚定弹层，绝不遮挡卡图）；MTGDecks 保持左侧偏好。跨站请求走 `GM_xmlhttpRequest`（无则回退 `fetch`），不受站点 Content-Security-Policy（如 Scryfall 的严格 `connect-src`）限制。
+八个站点共用同一套翻译数据库、mtgch API 回退、样式设置与固定浮窗开关。浮窗默认显示在卡牌/卡图**右侧**（空间不足换左侧，有原生卡图弹层的站点锚定弹层，绝不遮挡卡图）；MTGDecks 保持左侧偏好。跨站请求走 `GM_xmlhttpRequest`（无则回退 `fetch`），不受站点 Content-Security-Policy（如 Scryfall 的严格 `connect-src`）限制。
 
 ## 安装
 

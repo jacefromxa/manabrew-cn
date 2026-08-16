@@ -3,10 +3,10 @@
 // @name:zh-CN   万智牌中文悬浮翻译助手
 // @name:en      MTG Chinese Hover Translation Assistant
 // @namespace    https://play.manabrew.app/
-// @version      1.2.0
-// @description  在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。
-// @description:zh-CN 在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
-// @description:en Show Simplified Chinese card info on hover for Manabrew, MTGGoldfish, MTGDecks.net, Scryfall, EDHREC, Moxfield and MTGTop8 — name, type, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
+// @version      1.3.0
+// @description  在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8、CubeCobra 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。
+// @description:zh-CN 在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8、CubeCobra 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
+// @description:en Show Simplified Chinese card info on hover for Manabrew, MTGGoldfish, MTGDecks.net, Scryfall, EDHREC, Moxfield, MTGTop8 and CubeCobra — name, type, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
 // @author       jacefromxa
 // @license      GPL-3.0
 // @match        https://play.manabrew.app/*
@@ -22,6 +22,7 @@
 // @match        https://www.moxfield.com/*
 // @match        https://mtgtop8.com/*
 // @match        https://www.mtgtop8.com/*
+// @match        https://cubecobra.com/*
 // @run-at       document-idle
 // @updateURL    https://raw.githubusercontent.com/jacefromxa/manabrew-cn/main/manabrew-cn.user.js
 // @downloadURL  https://raw.githubusercontent.com/jacefromxa/manabrew-cn/main/manabrew-cn.user.js
@@ -63,7 +64,7 @@
   var API_CACHE_PREFIX = 'mbrw-api3-';
 
   // --- Site detection ------------------------------------------------------
-  // The same hover-translation panel serves seven sites:
+  // The same hover-translation panel serves eight sites:
   //   manabrew    play.manabrew.app   — canvas game, cards surface via the
   //               [data-card-preview] portal + React fiber introspection
   //   mtggoldfish www.mtggoldfish.com — card names are
@@ -75,6 +76,8 @@
   //   moxfield    moxfield.com        — a.table-deck-row-link + assets CDN,
   //               with a native hover preview panel (.deckview-image-wrapper)
   //   mtgtop8     mtgtop8.com         — .deck_line rows with .L14 name spans
+  //   cubecobra   cubecobra.com       — .list-group-card rows + cardimages CDN,
+  //               with a native hover popup (#autocardPopup)
   function detectSite() {
     var h = String(location.hostname || '').toLowerCase();
     if (h.indexOf('mtggoldfish') !== -1) return 'mtggoldfish';
@@ -83,6 +86,7 @@
     if (h.indexOf('edhrec') !== -1) return 'edhrec';
     if (h.indexOf('moxfield') !== -1) return 'moxfield';
     if (h.indexOf('mtgtop8') !== -1) return 'mtgtop8';
+    if (h.indexOf('cubecobra') !== -1) return 'cubecobra';
     return 'manabrew';
   }
   var SITE = detectSite();
@@ -911,12 +915,14 @@
     if (!r) return;
     var ps = { width: panel.offsetWidth || 300, height: panel.offsetHeight || 100 };
     // Sites with their own card-image hover panel (MTGGoldfish popover,
-    // Moxfield deck preview): anchor to IT and place our panel beside the
-    // image (right-first, never covering it). When the site popover isn't up
-    // yet or on other sites, fall back to the hovered element itself.
+    // Moxfield deck preview, CubeCobra autocard popup): anchor to IT and place
+    // our panel beside the image (right-first, never covering it). When the
+    // site popover isn't up yet or on other sites, fall back to the hovered
+    // element itself.
     var pr = null;
     if (SITE === 'mtggoldfish') pr = mtggoldfishPopoverRect();
     else if (SITE === 'moxfield') pr = moxfieldPreviewRect();
+    else if (SITE === 'cubecobra') pr = cubecobraPreviewRect();
     if (pr) {
       var beside = positionBesideCard(pr, ps, getViewport());
       panel.style.left = beside.left + 'px';
@@ -1294,6 +1300,59 @@
     return { el: row, name: name, identity: identity };
   }
 
+  // --- CubeCobra -----------------------------------------------------------
+  // Cube lists render card names as <span> inside <div class="…list-group-card…">
+  // (section headings use list-group-heading instead). Card images come from
+  // assets.cubecobra.com/cardimages/{uuid}/… with alt = clean card name, and
+  // the site shows its own hover popup (#autocardPopup) — our panel anchors to
+  // it and sits beside the image.
+  function cubecobraHit(el) {
+    var name = '';
+    var anchor = null;
+    if (el.tagName === 'A' && /\/card\//.test(el.getAttribute('href') || '')) {
+      // Card links (card pages / search rows) — the link text is the name.
+      name = (el.textContent || '').trim().replace(/\s+/g, ' ');
+      anchor = el;
+      if (!isValidCardName(name)) name = '';
+    } else if (el.tagName === 'IMG' && /cubecobra\.com\/cardimages/.test(el.src || '')) {
+      // Card image (search results, cube cover, grid views). Exclude the
+      // site's own hover-popup image — its alt is a URL, not a card name.
+      if (el.id === 'autocardImageFront' || (el.closest && el.closest('#autocardPopup'))) return null;
+      name = cleanCardName(el.getAttribute('alt'));
+      anchor = el;
+    } else if (el.tagName === 'SPAN' || el.tagName === 'DIV') {
+      // Card-name row in a cube list: walk up to the .list-group-card row.
+      var row = null;
+      var cur = el;
+      for (var d = 0; d < 6 && cur; d++) {
+        if (cur.nodeType === 1 && /list-group-card/.test(cur.className || '')) { row = cur; break; }
+        cur = cur.parentElement;
+      }
+      if (row) {
+        name = (row.textContent || '').trim().replace(/\s+/g, ' ');
+        anchor = row;
+      }
+    }
+    if (!isValidCardName(name)) return null;
+    return { el: anchor, name: name, identity: null };
+  }
+
+  // CubeCobra's own card hover popup — anchor our panel beside it (right-first)
+  // so the translation never covers the site's card image. The popup image
+  // (#autocardImageFront) carries the visible rect; the #autocardPopup wrapper
+  // keeps a stale off-screen rect even while hidden.
+  function cubecobraPreviewRect() {
+    try {
+      var img = document.getElementById('autocardImageFront');
+      if (!img) return null;
+      var r = img.getBoundingClientRect();
+      if (!r || r.width < 50 || r.height < 50) return null; // hidden
+      var vh = Number(root.innerHeight) || 1000;
+      if (r.top < -500 || r.top > vh + 500) return null; // stale off-screen rect
+      return r;
+    } catch (_) { return null; }
+  }
+
   // Unified finder for the non-Manabrew sites. Walk up from the hover target
   // (≤12 levels) and stop at the first element that looks like a card.
   function findSiteCard(target) {
@@ -1307,6 +1366,7 @@
       else if (SITE === 'edhrec') hit = edhrecHit(el);
       else if (SITE === 'moxfield') hit = moxfieldHit(el);
       else if (SITE === 'mtgtop8') hit = mtgtop8Hit(el);
+      else if (SITE === 'cubecobra') hit = cubecobraHit(el);
       if (hit) return hit;
       el = el.parentElement;
     }
@@ -2218,7 +2278,7 @@
     fetchAndLoadDB();
 
     updateMenuToggles();
-    LOG('v1.1.0 ready — ' + SITE + ': hover a card name or card image for the Simplified Chinese tooltip');
+    LOG('v1.3.0 ready — ' + SITE + ': hover a card name or card image for the Simplified Chinese tooltip');
   }
 
   if (document.readyState === 'loading') {

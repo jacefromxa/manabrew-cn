@@ -11,11 +11,11 @@
 |------|-----|
 | **名称 (Name)** | `万智牌中文悬浮翻译助手` |
 | **命名空间 (Namespace)** | `https://play.manabrew.app/` |
-| **简介 (Description / Synopsis)** | 在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。 |
-| **版本 (Version)** | `1.2.0` |
+| **简介 (Description / Synopsis)** | 在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8、CubeCobra 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。 |
+| **版本 (Version)** | `1.3.0` |
 | **作者 (Author)** | `jacefromxa` |
 | **许可 (License)** | `GPL-3.0` |
-| **适用站点 (Match)** | `https://play.manabrew.app/*`、`https://www.mtggoldfish.com/*`、`https://mtggoldfish.com/*`、`https://www.mtgdecks.net/*`、`https://mtgdecks.net/*`、`https://scryfall.com/*`、`https://edhrec.com/*`、`https://moxfield.com/*`、`https://www.mtgtop8.com/*`、`https://mtgtop8.com/*` |
+| **适用站点 (Match)** | `https://play.manabrew.app/*`、`https://www.mtggoldfish.com/*`、`https://mtggoldfish.com/*`、`https://www.mtgdecks.net/*`、`https://mtgdecks.net/*`、`https://scryfall.com/*`、`https://edhrec.com/*`、`https://moxfield.com/*`、`https://www.mtgtop8.com/*`、`https://mtgtop8.com/*`、`https://cubecobra.com/*` |
 | **主页 (Homepage)** | `https://github.com/jacefromxa/manabrew-cn` |
 | **安装地址 (Download URL)** | `https://raw.githubusercontent.com/jacefromxa/manabrew-cn/main/manabrew-cn.user.js` |
 | **更新地址 (Update URL)** | 同上（GitHub Raw 托管，Tampermonkey 可自动检查更新） |
@@ -31,7 +31,7 @@
 
 ### 这是什么
 
-一个为开源万智牌（MTG）在线客户端 [Manabrew](https://play.manabrew.app/)、卡价/牌组站 [MTGGoldfish](https://www.mtggoldfish.com/) 与 [MTGDecks.net](https://mtgdecks.net/)、卡查 [Scryfall](https://scryfall.com/)、指挥官统计 [EDHREC](https://edhrec.com/)、牌组构建 [Moxfield](https://moxfield.com/) 与赛事牌组库 [MTGTop8](https://www.mtgtop8.com/) 开发的用户脚本。悬停任意卡牌（卡名链接或卡图），自动在旁边显示**简体中文翻译浮窗**——中文卡名、英文原名、类别行、规则文本、法术力费用与攻防，正文与费用中的 MTG 符号（`{W}`、`{T}`、`{2/W}` 等）以彩色图标渲染，观感接近真实卡牌。
+一个为开源万智牌（MTG）在线客户端 [Manabrew](https://play.manabrew.app/)、卡价/牌组站 [MTGGoldfish](https://www.mtggoldfish.com/) 与 [MTGDecks.net](https://mtgdecks.net/)、卡查 [Scryfall](https://scryfall.com/)、指挥官统计 [EDHREC](https://edhrec.com/)、牌组构建 [Moxfield](https://moxfield.com/) 与赛事牌组库 [MTGTop8](https://www.mtgtop8.com/) 与 [CubeCobra](https://cubecobra.com/) 开发的用户脚本。悬停任意卡牌（卡名链接或卡图），自动在旁边显示**简体中文翻译浮窗**——中文卡名、英文原名、类别行、规则文本、法术力费用与攻防，正文与费用中的 MTG 符号（`{W}`、`{T}`、`{2/W}` 等）以彩色图标渲染，观感接近真实卡牌。
 
 ### 功能特性
 
@@ -73,16 +73,17 @@ Tampermonkey / Violentmonkey 菜单 → **⚙ 样式设置**：
 
 - 支持 Tampermonkey / Violentmonkey。
 - 需要浏览器支持 `DecompressionStream`（Chrome 80+ / Edge 80+ / Firefox 113+ / Safari 16.4+），不支持时自动降级，功能不受影响。
-- 仅在 `https://play.manabrew.app/*`、`https://www.mtggoldfish.com/*`、`https://mtgdecks.net/*`、`https://scryfall.com/*`、`https://edhrec.com/*`、`https://moxfield.com/*`、`https://www.mtgtop8.com/*`（含无 www 域名）下生效。
+- 仅在 `https://play.manabrew.app/*`、`https://www.mtggoldfish.com/*`、`https://mtgdecks.net/*`、`https://scryfall.com/*`、`https://edhrec.com/*`、`https://moxfield.com/*`、`https://www.mtgtop8.com/*`、`https://cubecobra.com/*`（含无 www 域名）下生效。
 
 ### 常见问题
 
-- **浮窗不显示？** 确认脚本已在 Tampermonkey 中启用、页面为上述七个站点之一；按 F12 查看控制台 `[mtg-cn]` 日志定位原因。
+- **浮窗不显示？** 确认脚本已在 Tampermonkey 中启用、页面为上述八个站点之一；按 F12 查看控制台 `[mtg-cn]` 日志定位原因。
 - **想关掉调试日志？** 控制台执行 `localStorage['mbrw-cn-diag']='0'`，或设置 `window.__MBRW_DIAG=false`。
 - **某张牌翻译缺失？** 属于本地库未收录的稀有卡，脚本会自动回退 API；若 API 也没有则显示英文原名（翻译暂缺）。
 
 ### 更新日志
 
+- **v1.3.0** — 新增 **CubeCobra**（cubecobra.com）支持：牌组/列表卡名行（`.list-group-card`）、卡图（`assets.cubecobra.com/cardimages`，alt 取卡名）、搜索页卡图；锚定其原生悬停弹层（`#autocardPopup`）摆放在卡图右侧（空间不足换左侧/上下），绝不遮挡卡图。
 - **v1.2.0** — 脚本更名 **万智牌中文悬浮翻译助手**（旧名「Manabrew 简体中文卡牌浮窗」）；控制台日志前缀改为 `[mtg-cn]`；更新简介中的支持站点清单（Manabrew / MTGGoldfish / MTGDecks.net / Scryfall / EDHREC / Moxfield / MTGTop8）。注意：更名后 Greasy Fork / 油猴按「名称+命名空间」识别脚本，旧安装不会自动更新，需重新安装（或删除旧脚本后装新版）。
 
 - **v1.1.0** — 新增 **Scryfall、EDHREC、Moxfield、MTGTop8** 四个站点支持（卡名悬停 + 卡图悬停）：Scryfall 卡页大图/标题/列表链接（卡页 URL 直接提供系列码+编号）、EDHREC 卡名链接/卡图、Moxfield 牌组列表卡名/卡图（锚定其原生悬停预览面板）、MTGTop8 牌组行（从 `AffCard(V)` 参数解析系列码+编号，兼容 classic/visual 两种牌表变体）。浮窗默认显示在卡图**右侧**、空间不足换左侧；跨站请求改走 `GM_xmlhttpRequest`（无则回退 `fetch`），突破 Scryfall 等严格 CSP 站点的 `connect-src` 限制。
