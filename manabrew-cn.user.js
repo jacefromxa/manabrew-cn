@@ -3,7 +3,7 @@
 // @name:zh-CN   Manabrew 简体中文卡牌浮窗
 // @name:en      Manabrew Simplified Chinese Card Tooltip
 // @namespace    https://play.manabrew.app/
-// @version      1.0.1
+// @version      1.0.2
 // @description  在 Manabrew、MTGGoldfish、MTGDecks.net 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。
 // @description:zh-CN 在 Manabrew、MTGGoldfish、MTGDecks.net 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
 // @description:en Show Simplified Chinese card info on hover for Manabrew, MTGGoldfish and MTGDecks.net — name, type, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
@@ -1010,6 +1010,21 @@
     return /mtggoldfish\.com\/images\//.test(src) || /scryfall/.test(src);
   }
 
+  // Strip set-code / foil / count annotations from an image alt (or
+  // data-card-id) so the remaining string is the plain card name the local DB
+  // keys on. MTGGoldfish price-page images use alt="Spectral Sailor [FDN]".
+  // Card names never contain [brackets]; the only paren forms stripped are
+  // trailing markers like (F) / (FOIL) / (2) — real names such as
+  // "B.F.M. (Big Furry Monster)" keep their parentheses.
+  function cleanCardName(raw) {
+    return String(raw || '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\[[^\]]*\]/g, ' ')
+      .replace(/\s*\((?:F|FOIL|NONFOIL|\d+)\)\s*$/i, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
   function mtggoldfishHit(el) {
     if (el.tagName !== 'A' && el.tagName !== 'IMG') return null;
 
@@ -1026,9 +1041,9 @@
         var name = (el.textContent || '').trim();
         if (!isValidCardName(name)) {
           // Anchors that wrap an image (hover thumbnails) have no text — take
-          // the img alt, which is the clean card name.
+          // the img alt, cleaned of set-code annotations.
           var innerImg = el.querySelector('img[alt]');
-          if (innerImg) name = (innerImg.getAttribute('alt') || '').trim();
+          if (innerImg) name = cleanCardName(innerImg.getAttribute('alt'));
         }
         if (!isValidCardName(name)) {
           // Last resort: strip "[SET]" / "<annotation>" / "(F)" from data-card-id
@@ -1048,9 +1063,10 @@
       }
     }
 
-    // Pure card image: name from alt; UUID image URLs expose no set/number.
+    // Pure card image: name from alt (cleaned); UUID image URLs expose no
+    // set/number, so these hover as name-only (fuzzy search fallback).
     if (!isMtggoldfishCardImage(el)) return null;
-    var imgName = (el.getAttribute('alt') || '').trim();
+    var imgName = cleanCardName(el.getAttribute('alt'));
     if (!isValidCardName(imgName) || imgName === 'Generic Card Back') return null;
     return { el: el, name: imgName, identity: null };
   }
@@ -1078,7 +1094,7 @@
     } else if (el.tagName === 'IMG' && el.getAttribute('alt') && /\/img\/card\//.test(el.src || '')) {
       // Image tile (staples / visual view): the img carries the name + identity.
       anchor = el;
-      name = el.getAttribute('alt').trim();
+      name = cleanCardName(el.getAttribute('alt'));
       identity = mtgdecksIdentity(el.src);
     } else if ((el.tagName === 'DIV' || el.tagName === 'LI' || el.tagName === 'TD') &&
                el.offsetWidth && el.offsetWidth < 420) {
@@ -1093,7 +1109,7 @@
       }
       if (count === 1 && cardImg) {
         anchor = cardImg;
-        name = (cardImg.getAttribute('alt') || '').trim();
+        name = cleanCardName(cardImg.getAttribute('alt'));
         identity = mtgdecksIdentity(cardImg.src);
       }
     }
@@ -2019,7 +2035,7 @@
     fetchAndLoadDB();
 
     updateMenuToggles();
-    LOG('v1.0.1 ready — ' + SITE + ': hover a card name or card image for the Simplified Chinese tooltip');
+    LOG('v1.0.2 ready — ' + SITE + ': hover a card name or card image for the Simplified Chinese tooltip');
   }
 
   if (document.readyState === 'loading') {

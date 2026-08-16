@@ -12,7 +12,7 @@
 | **名称 (Name)** | `Manabrew 简体中文卡牌浮窗` |
 | **命名空间 (Namespace)** | `https://play.manabrew.app/` |
 | **简介 (Description / Synopsis)** | 在 Manabrew、MTGGoldfish、MTGDecks.net 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。 |
-| **版本 (Version)** | `1.0.1` |
+| **版本 (Version)** | `1.0.2` |
 | **作者 (Author)** | `jacefromxa` |
 | **许可 (License)** | `GPL-3.0` |
 | **适用站点 (Match)** | `https://play.manabrew.app/*`、`https://www.mtggoldfish.com/*`、`https://mtggoldfish.com/*`、`https://www.mtgdecks.net/*`、`https://mtgdecks.net/*` |
@@ -82,6 +82,7 @@ Tampermonkey / Violentmonkey 菜单 → **⚙ 样式设置**：
 
 ### 更新日志
 
+- **v1.0.2** — 修复 MTGGoldfish **纯卡图悬停只显示英文名 + 系列码**的问题：价格页等处的卡图 `alt` 带 `[FDN]` 这类系列码后缀（如 `alt="Spectral Sailor [FDN]"`），查询前新增 `cleanCardName` 清洗注解（方括号一律剥离，仅剥离末尾的 `(F)/(FOIL)/(数字)` 标记，带括号的真卡名如「B.F.M. (Big Furry Monster)」不受影响），本地库命中后正常显示中文翻译。
 - **v1.0.1** — MTGGoldfish 两项改进：① 浮窗默认摆放在站点卡图弹层的**右侧**（右→左→下→上换边，空间不足才换方向）；② 支持**纯卡图**悬停——只显示卡图没有卡名文本的地方（牌组 Visual 视图、文章卡图瓦片等）也能显示中文翻译（从 `alt` 取卡名，UUID 图源不含系列码时按名查询）。
 - **v1.0.0** — 新增 **MTGGoldfish**（mtggoldfish.com）与 **MTGDecks.net**（mtgdecks.net）支持：悬停卡名链接 / 卡图即可显示同一套中文浮窗。从链接属性解析系列码 + 编号（MTGGoldfish：`data-card-id` + `/price/` href；MTGDecks：卡图 URL），未命中本地库时直接走 mtgch 精确端点；MTGGoldfish 上浮窗锚定站点自带的卡图弹层并摆放在其旁边（左→右→下→上换边，绝不遮挡卡图），MTGDecks 上默认在卡牌左侧；MTGGoldfish Turbo 页面切换后浮窗自动重建。
 - **v0.9.4** — 修复牌组列表 / 选择页在**空白处悬停误显示首张卡牌**的问题：此前鼠标悬停在卡牌间隙、列表空白区时，会把页面内第一张卡牌封面（如「希望之光尼科」）误判为悬停目标而常驻显示，且悬停实际卡牌反而无法显示。现在空白处不再触发浮窗，只有悬停在真实卡牌 / 卡图 / 预览大图上才显示。

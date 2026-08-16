@@ -53,6 +53,7 @@
 
 <h2>更新日志</h2>
 <ul>
+  <li><strong>v1.0.2</strong> — 修复 MTGGoldfish <strong>纯卡图悬停只显示英文名 + 系列码</strong>的问题：价格页等处的卡图 <code>alt</code> 带 <code>[FDN]</code> 这类系列码后缀（如 <code>alt="Spectral Sailor [FDN]"</code>），查询前新增 <code>cleanCardName</code> 清洗注解（方括号一律剥离，仅剥离末尾的 <code>(F)/(FOIL)/(数字)</code> 标记，带括号的真卡名如「B.F.M. (Big Furry Monster)」不受影响），本地库命中后正常显示中文翻译。</li>
   <li><strong>v1.0.1</strong> — MTGGoldfish 两项改进：① 浮窗默认摆放在站点卡图弹层的<strong>右侧</strong>（右→左→下→上换边，空间不足才换方向）；② 支持<strong>纯卡图</strong>悬停——只显示卡图没有卡名文本的地方（牌组 Visual 视图、文章卡图瓦片等）也能显示中文翻译（从 <code>alt</code> 取卡名，UUID 图源不含系列码时按名查询）。</li>
   <li><strong>v1.0.0</strong> — 新增 <strong>MTGGoldfish</strong>（mtggoldfish.com）与 <strong>MTGDecks.net</strong>（mtgdecks.net）支持：悬停卡名链接 / 卡图即可显示同一套中文浮窗。从链接属性解析系列码 + 编号（MTGGoldfish：<code>data-card-id</code> + <code>/price/</code> href；MTGDecks：卡图 URL），未命中本地库时直接走 mtgch 精确端点；MTGGoldfish 上浮窗锚定站点自带的卡图弹层并摆放在其旁边（左→右→下→上换边，绝不遮挡卡图），MTGDecks 上默认在卡牌左侧；MTGGoldfish Turbo 页面切换后浮窗自动重建。</li>
   <li><strong>v0.9.4</strong> — 修复牌组列表 / 选择页在<strong>空白处悬停误显示首张卡牌</strong>的问题：此前鼠标悬停在卡牌间隙、列表空白区时，会把页面内第一张卡牌封面（如「希望之光尼科」）误判为悬停目标而常驻显示，且悬停实际卡牌反而无法显示。现在空白处不再触发浮窗，只有悬停在真实卡牌 / 卡图 / 预览大图上才显示。</li>
