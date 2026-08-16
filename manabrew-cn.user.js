@@ -861,6 +861,19 @@
     var r = getAnchorRect(anchorEl);
     if (!r) return;
     var ps = { width: panel.offsetWidth || 300, height: panel.offsetHeight || 100 };
+    // MTGGoldfish: while the site's own card-image popover is visible, anchor
+    // to IT (not the name link) and place our panel next to it — never over
+    // the image. When the popover isn't up yet (first ~200ms of hover) or on
+    // other sites, fall back to the generic placement.
+    if (SITE === 'mtggoldfish') {
+      var pr = mtggoldfishPopoverRect();
+      if (pr) {
+        var beside = positionBesideCard(pr, ps, getViewport());
+        panel.style.left = beside.left + 'px';
+        panel.style.top = beside.top + 'px';
+        return;
+      }
+    }
     var opts = {};
     // MTGGoldfish / MTGDecks open their own card popover on the right of the
     // name — keep our translation panel on the left to avoid stacking on it.
@@ -1065,6 +1078,58 @@
       el = el.parentElement;
     }
     return null;
+  }
+
+  // MTGGoldfish shows its own card-image popover (.popover-card.popover.show)
+  // to the right of the hovered name link while the pointer is on it. Return
+  // its viewport rect so our translation panel can sit BESIDE the image
+  // instead of covering it. null when no popover is currently visible.
+  function mtggoldfishPopoverRect() {
+    try {
+      var p = document.querySelector('.popover-card.popover.show, .popover.show .popover-body img');
+      if (!p) return null;
+      var r = p.getBoundingClientRect();
+      if (!r || r.width < 20 || r.height < 20) return null; // still rendering / hidden
+      return r;
+    } catch (_) { return null; }
+  }
+
+  // Place the panel NEXT TO `anchor` (the native card image) without covering
+  // it: prefer left, then right, then below, then above; only clamp as a last
+  // resort. The generic space-based placement can't express this ordering.
+  function positionBesideCard(anchorRect, panelSize, viewport) {
+    var w = Math.max(0, panelSize.width || 0);
+    var h = Math.max(0, panelSize.height || 0);
+    var gap = 12;
+    var margin = 12;
+    var fitsLeft = anchorRect.left - margin >= w + gap;
+    var fitsRight = viewport.width - anchorRect.right - margin >= w + gap;
+    var fitsBelow = viewport.height - anchorRect.bottom - margin >= h + gap;
+    var fitsAbove = anchorRect.top - margin >= h + gap;
+    var clampX = function (x) { return Math.min(Math.max(x, margin), Math.max(margin, viewport.width - w - margin)); };
+    var clampY = function (y) { return Math.min(Math.max(y, margin), Math.max(margin, viewport.height - h - margin)); };
+    var centerTop = function () { return clampY(anchorRect.top + (anchorRect.height - h) / 2); };
+    var left, top;
+    if (fitsLeft) {
+      left = anchorRect.left - w - gap;
+      top = centerTop();
+    } else if (fitsRight) {
+      left = anchorRect.right + gap;
+      top = centerTop();
+    } else if (fitsBelow) {
+      left = clampX(anchorRect.left);
+      top = anchorRect.bottom + gap;
+    } else if (fitsAbove) {
+      left = clampX(anchorRect.left);
+      top = anchorRect.top - h - gap;
+    } else {
+      // Nothing fits — clamp to the side with the most room, keep in viewport.
+      left = (viewport.width - anchorRect.right >= anchorRect.left)
+        ? anchorRect.right + gap : anchorRect.left - w - gap;
+      left = clampX(left);
+      top = centerTop();
+    }
+    return { left: Math.round(left), top: Math.round(top) };
   }
 
   // --- Unified card display ------------------------------------------------

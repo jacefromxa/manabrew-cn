@@ -12,7 +12,7 @@
 | [MTGGoldfish](https://www.mtggoldfish.com/) | 悬停卡名链接（`data-card-id`）或卡图 | 牌组页、价格页、Metagame 页等；从链接解析出系列码 + 编号，未命中本地库时走 mtgch 精确端点 |
 | [MTGDecks.net](https://mtgdecks.net/) | 悬停卡名链接（`image` 属性）、卡图瓦片或瓦片下方卡名 | 牌组（DECK VIEW / VISUAL VIEW）、Staples、价格页等；同样解析系列码 + 编号 |
 
-三个站点共用同一套翻译数据库、mtgch API 回退、样式设置与固定浮窗开关。MTGGoldfish / MTGDecks 上浮窗默认显示在卡牌左侧，避免与站点自带的卡图/价格弹层重叠。
+三个站点共用同一套翻译数据库、mtgch API 回退、样式设置与固定浮窗开关。MTGGoldfish 上，当站点自带的卡图弹层出现时，浮窗会**锚定卡图弹层**并摆放在其旁边（左→右→下→上，空间不足自动换边），绝不遮挡卡图；弹层出现前短暂以卡名链接为锚。MTGDecks 的浮窗默认显示在卡牌左侧，避开站点自带的价格弹层。
 
 ## 安装
 
