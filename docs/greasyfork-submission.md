@@ -12,7 +12,7 @@
 | **名称 (Name)** | `万智牌中文悬浮翻译助手` |
 | **命名空间 (Namespace)** | `https://play.manabrew.app/` |
 | **简介 (Description / Synopsis)** | 在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8、CubeCobra 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。 |
-| **版本 (Version)** | `1.4.0` |
+| **版本 (Version)** | `1.4.1` |
 | **作者 (Author)** | `jacefromxa` |
 | **许可 (License)** | `GPL-3.0` |
 | **适用站点 (Match)** | `https://play.manabrew.app/*`、`https://www.mtggoldfish.com/*`、`https://mtggoldfish.com/*`、`https://www.mtgdecks.net/*`、`https://mtgdecks.net/*`、`https://scryfall.com/*`、`https://edhrec.com/*`、`https://moxfield.com/*`、`https://www.mtgtop8.com/*`、`https://mtgtop8.com/*`、`https://cubecobra.com/*` |
@@ -83,6 +83,7 @@ Tampermonkey / Violentmonkey 菜单 → **⚙ 样式设置**：
 
 ### 更新日志
 
+- **v1.4.1** — 修复两个问题：① **Scryfall 浮窗全透明**——其 CSP（style-src 无 unsafe-inline）拦截了普通 `<style>` 元素，导致 CSS 变量未定义、面板背景失效；改优先用 `GM_addStyle`（绕过页面 CSP）注入样式，并用 CSSOM 内联核心颜色兜底（实测面板恢复深色背景/浅色文字/边框）。② **EDHREC 文章卡名只能部分触发**——部分文章（如 Y'shtola 报道）的卡名链接是 `/commanders/{slug}` 而非 `/cards/{slug}`；改为匹配 `.edhrecp__link` 包装器内的任意相对路径卡名链接（含 commander），并支持悬停包装器本身；排除包装器内的外链价格锚点。实测 commander 链接与三种文章卡名形态全部触发。
 - **v1.4.0** — 勘误与补全：① Moxfield 浮窗改为**跟随鼠标**（优先鼠标右侧、空间不足换左侧，修复了鼠标锚点缺 right/bottom 导致定位 NaN 的问题）；② 定位规范统一为**先右后左**，MTGDecks 同样遵从（不再靠左）；③ EDHREC **文章内嵌卡名**支持（`Card_name__*` 卡块与 `fake-link` 移动端副本）；④ 移除 Moxfield 原生预览面板锚定。
 - **v1.3.0** — 新增 **CubeCobra**（cubecobra.com）支持：牌组/列表卡名行（`.list-group-card`）、卡图（`assets.cubecobra.com/cardimages`，alt 取卡名）、搜索页卡图；锚定其原生悬停弹层（`#autocardPopup`）摆放在卡图右侧（空间不足换左侧/上下），绝不遮挡卡图。
 - **v1.2.0** — 脚本更名 **万智牌中文悬浮翻译助手**（旧名「Manabrew 简体中文卡牌浮窗」）；控制台日志前缀改为 `[mtg-cn]`；更新简介中的支持站点清单（Manabrew / MTGGoldfish / MTGDecks.net / Scryfall / EDHREC / Moxfield / MTGTop8）。注意：更名后 Greasy Fork / 油猴按「名称+命名空间」识别脚本，旧安装不会自动更新，需重新安装（或删除旧脚本后装新版）。

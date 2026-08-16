@@ -3,7 +3,7 @@
 // @name:zh-CN   万智牌中文悬浮翻译助手
 // @name:en      MTG Chinese Hover Translation Assistant
 // @namespace    https://play.manabrew.app/
-// @version      1.4.0
+// @version      1.4.1
 // @description  在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8、CubeCobra 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。
 // @description:zh-CN 在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8、CubeCobra 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
 // @description:en Show Simplified Chinese card info on hover for Manabrew, MTGGoldfish, MTGDecks.net, Scryfall, EDHREC, Moxfield, MTGTop8 and CubeCobra — name, type, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
@@ -30,6 +30,7 @@
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
 // @grant        GM_xmlhttpRequest
+// @grant        GM_addStyle
 // ==/UserScript==
 
 (function () {
@@ -161,20 +162,10 @@
   // --- Stylesheet ---------------------------------------------------------
 
   var styleTag = null;
+  var gmStyleEl = null;
 
-  function ensureStyleTag() {
-    if (styleTag) return;
-    styleTag = document.createElement('style');
-    styleTag.id = 'mbrw-cn-style';
-    document.head.appendChild(styleTag);
-    writeStyleTag();
-  }
-
-  // 把所有可调样式写成 :root 上的 CSS 变量。浮窗面板与设置弹窗里的预览框
-  // 都读同一组变量，因此任何改动立即同时生效（同 talishar-cn 的做法）。
-  function applyStyleVariables(vars) {
-    if (!styleTag) return;
-    styleTag.textContent = ':root {' +
+  function buildPanelCss(vars) {
+    return ':root {' +
       '--mbrw-bg-color:' + (vars.bgColor || '26, 28, 33') + ';' +
       '--mbrw-bg-opacity:' + (vars.bgOpacity != null ? vars.bgOpacity : 0.94) + ';' +
       '--mbrw-border-color:' + (vars.borderColor || '255, 255, 255') + ';' +
@@ -199,6 +190,50 @@
       '#mbrw-cn-panel .ms{filter:drop-shadow(0 0 0.4px rgba(0,0,0,0.55));}' +
       '#mbrw-cn-panel .mbrw-cost-row .ms{font-size:1.05em;vertical-align:middle;margin-right:2px;}' +
       '#mbrw-cn-panel .mbrw-rules .ms{font-size:0.95em;vertical-align:middle;margin-right:1px;}';
+  }
+
+  // 把所有可调样式写成 :root 上的 CSS 变量。浮窗面板与设置弹窗里的预览框
+  // 都读同一组变量，因此任何改动立即同时生效（同 talishar-cn 的做法）。
+  // Scryfall 的 CSP（style-src 无 'unsafe-inline'）会拦截普通 <style> 元素，
+  // 导致变量未定义、面板全透明——所以优先用 GM_addStyle（由脚本管理器注入，
+  // 绕过页面 CSP），无 GM_addStyle 时回退到普通 <style>。
+  function applyStyleVariables(vars) {
+    var css = buildPanelCss(vars);
+    if (typeof GM_addStyle === 'function') {
+      try {
+        if (!gmStyleEl || !document.body || !document.body.contains(gmStyleEl)) {
+          gmStyleEl = GM_addStyle(css);
+          if (gmStyleEl && gmStyleEl.nodeType === 1) gmStyleEl.id = 'mbrw-cn-style';
+        } else {
+          gmStyleEl.textContent = css;
+        }
+      } catch (_) {}
+    } else {
+      if (!styleTag) {
+        styleTag = document.createElement('style');
+        styleTag.id = 'mbrw-cn-style';
+        (document.head || document.documentElement).appendChild(styleTag);
+      }
+      styleTag.textContent = css;
+    }
+    applyPanelInlineColors(vars);
+  }
+
+  // Belt-and-braces: 面板核心颜色用 CSSOM 直接内联设置（实测 Scryfall 的 CSP
+  // 不拦截 JS 写 element.style）——即使上面的样式注入全部失效，浮窗也绝不会
+  // 全透明不可读。
+  function applyPanelInlineColors(vars) {
+    try {
+      if (panel) {
+        panel.style.background = 'rgba(' + (vars.bgColor || '26, 28, 33') + ',' + (vars.bgOpacity != null ? vars.bgOpacity : 0.94) + ')';
+        panel.style.borderColor = 'rgba(' + (vars.borderColor || '255, 255, 255') + ',' + (vars.borderOpacity != null ? vars.borderOpacity : 0.18) + ')';
+        panel.style.color = vars.textColor || '#d4d4d8';
+      }
+    } catch (_) {}
+  }
+
+  function ensureStyleTag() {
+    applyStyleVariables(settings);
   }
 
   function writeStyleTag() {
@@ -596,6 +631,9 @@
     panel.appendChild(dragHandle);
     document.body.appendChild(panel);
     panel.addEventListener('mousedown', onPanelMouseDown);
+    // Inline core colors via CSSOM — readable even when a strict CSP (Scryfall)
+    // blocks the injected <style> with the CSS variables.
+    applyPanelInlineColors(settings);
     applyPanelMode();
   }
 
@@ -1210,13 +1248,22 @@
   // --- EDHREC --------------------------------------------------------------
   // Card name links <a href="/cards/{slug}">Name</a> everywhere; card pages
   // show <h3>Name (Card)</h3> and <img src="card-images.edhrec.com" alt="Name">.
-  // Articles render card names three ways in the prose: the /cards/ link, a
-  // mobile-only <span class="fake-link"> duplicate, and embedded card blocks
+  // Articles render card names inside <span class="edhrecp__link"> which wraps
+  // the desktop link (href may be /cards/ OR /commanders/), a mobile-only
+  // <span class="fake-link"> duplicate, and embedded card blocks
   // <span class="Card_name__…">Name</span>.
   function edhrecHit(el) {
     var name = '';
-    if (el.tagName === 'A' && /^\/cards\//.test(el.getAttribute('href') || '')) {
-      name = (el.textContent || '').trim().replace(/\s+/g, ' ');
+    if (el.tagName === 'A') {
+      var href = el.getAttribute('href') || '';
+      // Card/commander links: /cards/ or /commanders/ paths, or any RELATIVE
+      // link wrapped by EDHREC's .edhrecp__link card-name wrapper (articles use
+      // /commanders/ for commander mentions). Absolute links inside the wrapper
+      // (e.g. price links) are not card names.
+      var inWrapper = !!(el.closest && el.closest('.edhrecp__link'));
+      if (/^\/?(cards|commanders)\//.test(href) || (inWrapper && href.indexOf('/') === 0)) {
+        name = (el.textContent || '').trim().replace(/\s+/g, ' ');
+      }
     } else if (el.tagName === 'IMG' && /card-images\.edhrec\.com/.test(el.src || '')) {
       name = cleanCardName(el.getAttribute('alt'));
     } else if ((el.tagName === 'H2' || el.tagName === 'H3' || el.tagName === 'H4') &&
@@ -1224,7 +1271,16 @@
       name = (el.textContent || '').trim().replace(/\s*\(Card\)\s*$/, '');
     } else if (el.tagName === 'SPAN') {
       var cls = String(el.className || '');
-      if (cls === 'fake-link' && el.closest && el.closest('.edhrecp__link, [class*="ArticlePage_content"]')) {
+      if (cls.indexOf('edhrecp__link') !== -1) {
+        // The card-name wrapper itself — hover its box. Name from the inner
+        // link or the mobile fake-link.
+        var innerA = el.querySelector('a');
+        if (innerA) name = (innerA.textContent || '').trim();
+        else {
+          var innerFl = el.querySelector('.fake-link');
+          if (innerFl) name = (innerFl.textContent || '').trim();
+        }
+      } else if (cls === 'fake-link' && el.closest && el.closest('.edhrecp__link, [class*="ArticlePage_content"]')) {
         // Article-prose mobile duplicate of a card link.
         name = (el.textContent || '').trim().replace(/\s+/g, ' ');
       } else if (cls.indexOf('Card_name') !== -1) {
@@ -2276,7 +2332,7 @@
     fetchAndLoadDB();
 
     updateMenuToggles();
-    LOG('v1.4.0 ready — ' + SITE + ': hover a card name or card image for the Simplified Chinese tooltip');
+    LOG('v1.4.1 ready — ' + SITE + ': hover a card name or card image for the Simplified Chinese tooltip');
   }
 
   if (document.readyState === 'loading') {
