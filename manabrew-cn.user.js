@@ -3,13 +3,17 @@
 // @name:zh-CN   Manabrew 简体中文卡牌浮窗
 // @name:en      Manabrew Simplified Chinese Card Tooltip
 // @namespace    https://play.manabrew.app/
-// @version      0.9.4
-// @description  在 Manabrew 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。
-// @description:zh-CN 在 Manabrew 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
-// @description:en Show Simplified Chinese card info on hover for Manabrew — name, type, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
+// @version      1.0.0
+// @description  在 Manabrew、MTGGoldfish、MTGDecks.net 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。
+// @description:zh-CN 在 Manabrew、MTGGoldfish、MTGDecks.net 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
+// @description:en Show Simplified Chinese card info on hover for Manabrew, MTGGoldfish and MTGDecks.net — name, type, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
 // @author       jacefromxa
 // @license      GPL-3.0
 // @match        https://play.manabrew.app/*
+// @match        https://www.mtggoldfish.com/*
+// @match        https://mtggoldfish.com/*
+// @match        https://www.mtgdecks.net/*
+// @match        https://mtgdecks.net/*
 // @run-at       document-idle
 // @updateURL    https://raw.githubusercontent.com/jacefromxa/manabrew-cn/main/manabrew-cn.user.js
 // @downloadURL  https://raw.githubusercontent.com/jacefromxa/manabrew-cn/main/manabrew-cn.user.js
@@ -48,6 +52,23 @@
   // dropped once. (v0.9.1 bumped mbrw-api- → mbrw-api2- for the wrong-card-name
   // leak fix.)
   var API_CACHE_PREFIX = 'mbrw-api3-';
+
+  // --- Site detection ------------------------------------------------------
+  // v1.0.0: the same hover-translation panel now serves three sites.
+  //   manabrew    play.manabrew.app   — canvas game, cards surface via the
+  //               [data-card-preview] portal + React fiber introspection
+  //   mtggoldfish www.mtggoldfish.com — card names are
+  //               <a data-card-id="Name [SET]" href="/price/{set}/{num}/{slug}">
+  //   mtgdecks    mtgdecks.net        — card names are
+  //               <a href="/prices/…" image="/img/card/{SET}/{slug}-{num}.jpg">
+  function detectSite() {
+    var h = String(location.hostname || '').toLowerCase();
+    if (h.indexOf('mtggoldfish') !== -1) return 'mtggoldfish';
+    if (h.indexOf('mtgdecks') !== -1) return 'mtgdecks';
+    return 'manabrew';
+  }
+  var SITE = detectSite();
+  var IS_MANABREW = SITE === 'manabrew';
 
   // --- Settings -----------------------------------------------------------
 
@@ -506,8 +527,12 @@
   var panel = null;
   var dragHandle = null;
 
+  // v1.0.0: also re-create when the panel has been detached from the document —
+  // MTGGoldfish navigates via Turbo, which swaps <body>'s children, taking our
+  // appended panel along with it. ensurePanel is called again on the next card
+  // hover (presentCard), so the tooltip keeps working after page transitions.
   function ensurePanel() {
-    if (panel) return;
+    if (panel && document.body.contains(panel)) return;
     panel = document.createElement('div');
     panel.id = 'mbrw-cn-panel';
     panel.style.cssText = 'position:fixed;left:0;top:0;z-index:2147483647;display:none;visibility:hidden;max-width:320px;max-height:50vh;overflow:auto;padding:9px 11px;border:1px solid rgba(var(--mbrw-border-color),var(--mbrw-border-opacity));border-radius:6px;background:rgba(var(--mbrw-bg-color),var(--mbrw-bg-opacity));color:var(--mbrw-text-color);box-shadow:0 4px 18px rgba(0,0,0,.45);pointer-events:none;font:13px/1.5 system-ui,-apple-system,sans-serif';
@@ -517,7 +542,17 @@
     dragHandle.style.cssText = 'display:none;height:20px;cursor:grab;margin:-9px -11px 6px -11px;border-radius:6px 6px 0 0;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.45);text-align:center;font-size:11px;line-height:20px;letter-spacing:4px;user-select:none;-webkit-user-select:none';
     panel.appendChild(dragHandle);
     document.body.appendChild(panel);
+    panel.addEventListener('mousedown', onPanelMouseDown);
     applyPanelMode();
+  }
+
+  function onPanelMouseDown(e) {
+    if (settings.panelMode !== 'fixed' || e.target !== dragHandle || e.button !== 0) return;
+    e.preventDefault();
+    dragHandle.style.cursor = 'grabbing';
+    dragState = { sX: e.clientX, sY: e.clientY, pL: panel.offsetLeft, pT: panel.offsetTop };
+    document.addEventListener('mousemove', onDragMove);
+    document.addEventListener('mouseup', onDragUp);
   }
 
   function applyPanelMode() {
@@ -564,7 +599,14 @@
     var w = Math.max(0, panelSize.width || 0);
     var h = Math.max(0, panelSize.height || 0);
     var rightSpace = viewport.width - anchorRect.right;
-    var prefSide = rightSpace >= w + gap ? 'right' : anchorRect.left >= w + gap ? 'left' : 'right';
+    // options.preferSide ('left' / 'right') forces a side — used on
+    // MTGGoldfish / MTGDecks where the site's own hover popover opens to the
+    // right of the card link; fall back to the other side when it doesn't fit.
+    var prefSide = options.preferSide === 'left' ? 'left'
+      : options.preferSide === 'right' ? 'right'
+      : (rightSpace >= w + gap ? 'right' : anchorRect.left >= w + gap ? 'left' : 'right');
+    if (prefSide === 'left' && anchorRect.left < w + gap && rightSpace >= w + gap) prefSide = 'right';
+    if (prefSide === 'right' && rightSpace < w + gap && anchorRect.left >= w + gap) prefSide = 'left';
     var prefLeft = prefSide === 'right' ? anchorRect.right + gap : anchorRect.left - w - gap;
     var prefTop = anchorRect.top + (anchorRect.height - h) / 2;
     return {
@@ -819,7 +861,11 @@
     var r = getAnchorRect(anchorEl);
     if (!r) return;
     var ps = { width: panel.offsetWidth || 300, height: panel.offsetHeight || 100 };
-    var pos = calculatePanelPosition(r, ps, getViewport());
+    var opts = {};
+    // MTGGoldfish / MTGDecks open their own card popover on the right of the
+    // name — keep our translation panel on the left to avoid stacking on it.
+    if (!IS_MANABREW) opts.preferSide = 'left';
+    var pos = calculatePanelPosition(r, ps, getViewport(), opts);
     panel.style.left = pos.left + 'px';
     panel.style.top = pos.top + 'px';
   }
@@ -921,9 +967,110 @@
     return null;
   }
 
+  // --- MTGGoldfish / MTGDecks card links ------------------------------------
+  // Both sites render card names as text links, so hover detection works on
+  // the anchor itself instead of a card image:
+  //   mtggoldfish: <a data-card-id="Name [SET]" href="/price/{set-slug}/{num}/{slug}">
+  //     → name = link text; identity = set code from data-card-id + collector
+  //       number from the /price/ href (feeds the exact mtgch endpoint).
+  //   mtgdecks:    <a href="/prices/{slug}" image="/img/card/{SET}/{slug}-{num}.jpg">
+  //     → name = link text (or the inner img's alt); identity parsed from the
+  //       image URL. Card tiles (staples/visual views) are <img … alt="Name"
+  //       src="/img/card/{SET}/…"> — handled by the img branch, plus a small
+  //       container fallback for the name label under a tile.
+  // Returns a hit { el, name, identity } or null.
+
+  function mtggoldfishHit(el) {
+    if (el.tagName !== 'A') return null;
+    var cardId = el.getAttribute('data-card-id');
+    if (!cardId) return null;
+    var name = (el.textContent || '').trim();
+    if (!isValidCardName(name)) {
+      // Anchors that wrap an image (hover thumbnails) have no text — take the
+      // img alt, which is the clean card name.
+      var innerImg = el.querySelector('img[alt]');
+      if (innerImg) name = (innerImg.getAttribute('alt') || '').trim();
+    }
+    if (!isValidCardName(name)) {
+      // Last resort: strip "[SET]" / "<annotation>" / "(F)" from data-card-id
+      name = cardId
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/\[[A-Z0-9]{2,6}\]/g, ' ')
+        .replace(/\([^)]*\)/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+    if (!isValidCardName(name)) return null;
+    var setM = cardId.match(/\[([A-Z0-9]{2,6})\]/);
+    var numM = (el.getAttribute('href') || '').match(/\/price\/[^/]+\/(\d+)\//);
+    var identity = null;
+    if (setM && numM) identity = { setCode: setM[1], cardNumber: numM[1] };
+    return { el: el, name: name, identity: identity };
+  }
+
+  function mtgdecksIdentity(url) {
+    var setM = String(url || '').match(/\/img\/card\/([A-Z0-9]{2,6})\//);
+    var numM = String(url || '').match(/-(\d+)\.jpg/);
+    if (!setM || !numM) return null;
+    return { setCode: setM[1], cardNumber: numM[1] };
+  }
+
+  function mtgdecksHit(el) {
+    var anchor = null;
+    var name = '';
+    var identity = null;
+    if (el.tagName === 'A' && el.getAttribute('image')) {
+      // Deck view / sideboard: the name is the anchor's own text.
+      anchor = el;
+      name = (el.textContent || '').trim();
+      if (!isValidCardName(name)) {
+        var innerImg = el.querySelector('img[alt]');
+        name = innerImg ? (innerImg.getAttribute('alt') || '').trim() : '';
+      }
+      identity = mtgdecksIdentity(el.getAttribute('image'));
+    } else if (el.tagName === 'IMG' && el.getAttribute('alt') && /\/img\/card\//.test(el.src || '')) {
+      // Image tile (staples / visual view): the img carries the name + identity.
+      anchor = el;
+      name = el.getAttribute('alt').trim();
+      identity = mtgdecksIdentity(el.src);
+    } else if ((el.tagName === 'DIV' || el.tagName === 'LI' || el.tagName === 'TD') &&
+               el.offsetWidth && el.offsetWidth < 420) {
+      // Name label under a small card tile: the tile div holds exactly one
+      // card image. The width guard keeps blank space in big page layouts from
+      // matching the first card anywhere (same bug manabrew hit with grids).
+      var imgs = el.querySelectorAll('img[alt]');
+      var cardImg = null;
+      var count = 0;
+      for (var i = 0; i < imgs.length; i++) {
+        if (/\/img\/card\//.test(imgs[i].src || '')) { cardImg = imgs[i]; count++; }
+      }
+      if (count === 1 && cardImg) {
+        anchor = cardImg;
+        name = (cardImg.getAttribute('alt') || '').trim();
+        identity = mtgdecksIdentity(cardImg.src);
+      }
+    }
+    if (!anchor || !isValidCardName(name)) return null;
+    return { el: anchor, name: name, identity: identity };
+  }
+
+  // Unified finder for the non-Manabrew sites. Walk up from the hover target
+  // (≤12 levels) and stop at the first element that looks like a card.
+  function findSiteCard(target) {
+    var el = target;
+    for (var d = 0; d < 12 && el && el !== document.body; d++) {
+      if (el.nodeType !== 1) { el = el.parentElement; continue; }
+      var hit = SITE === 'mtggoldfish' ? mtggoldfishHit(el) : mtgdecksHit(el);
+      if (hit) return hit;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
   // --- Unified card display ------------------------------------------------
 
   function presentCard(anchorEl, cardName, identity) {
+    ensurePanel(); // re-create if a Turbo/SPA page transition detached it
     currentSerial++;
     var serial = currentSerial;
     currentAnchor = anchorEl;
@@ -1077,22 +1224,34 @@
   var HOVER_DELAY_MS = 100;
 
   function onPointerOver(e) {
-    var img = findCardInDOM(e.target);
-    if (!img) return;
+    if (IS_MANABREW) {
+      var img = findCardInDOM(e.target);
+      if (!img) return;
 
+      clearTimeout(hoverTimer);
+      hoverTimer = setTimeout(function () {
+        var cardName = img.alt.trim();
+        // Deck cover images carry the DECK name as alt; resolve the actual
+        // cover card (commander) from React props when available. The full
+        // identity (setCode + cardNumber) feeds the exact API endpoint.
+        var identity = deckCoverIdentity(img);
+        if (identity && identity.name) {
+          cardName = identity.name;
+          LOG('Deck cover → ' + cardName);
+        }
+        if (!isValidCardName(cardName)) return;
+        presentCard(img, cardName, identity);
+      }, HOVER_DELAY_MS);
+      return;
+    }
+
+    // MTGGoldfish / MTGDecks: hover the card-name link (or a card tile).
+    var hit = findSiteCard(e.target);
+    if (!hit) return;
     clearTimeout(hoverTimer);
     hoverTimer = setTimeout(function () {
-      var cardName = img.alt.trim();
-      // Deck cover images carry the DECK name as alt; resolve the actual
-      // cover card (commander) from React props when available. The full
-      // identity (setCode + cardNumber) feeds the exact API endpoint.
-      var identity = deckCoverIdentity(img);
-      if (identity && identity.name) {
-        cardName = identity.name;
-        LOG('Deck cover → ' + cardName);
-      }
-      if (!isValidCardName(cardName)) return;
-      presentCard(img, cardName, identity);
+      LOG('Site card → ' + hit.name + (hit.identity ? ' (' + hit.identity.setCode + '/' + hit.identity.cardNumber + ')' : ''));
+      presentCard(hit.el, hit.name, hit.identity);
     }, HOVER_DELAY_MS);
   }
 
@@ -1101,11 +1260,20 @@
     if (!currentAnchor) return;
     if (settings.panelMode === 'fixed') return;
     if (e.relatedTarget && panel.contains(e.relatedTarget)) return;
-    // Only hide when the pointer actually leaves a DOM card; stray pointerout
-    // events (moving across the PixiJS canvas, preview churn) must not dismiss
-    // the panel.
-    var img = findCardInDOM(e.target);
-    if (!img) return;
+    if (IS_MANABREW) {
+      // Only hide when the pointer actually leaves a DOM card; stray pointerout
+      // events (moving across the PixiJS canvas, preview churn) must not dismiss
+      // the panel.
+      var img = findCardInDOM(e.target);
+      if (!img) return;
+      hidePanel();
+      return;
+    }
+    var hit = findSiteCard(e.target);
+    if (!hit) return;
+    // Keep the panel while the pointer moves within the same card row (e.g.
+    // from the name link to the row it sits in); hide when it truly leaves.
+    if (e.relatedTarget && hit.el.contains(e.relatedTarget)) return;
     hidePanel();
   }
 
@@ -1402,7 +1570,7 @@
     // --- 标题 + 实时预览框（与浮窗共用同一组 CSS 变量） ---
 
     var title = doc.createElement('div');
-    title.textContent = '⚙ Manabrew CN 设置';
+    title.textContent = '⚙ 卡牌翻译浮窗 设置';
     title.style.cssText = 'font-size:16px;font-weight:700;margin-bottom:10px;color:#ffad42;';
     box.appendChild(title);
 
@@ -1728,16 +1896,14 @@
     ensureManaCSS();
     ensurePanel();
 
-    panel.addEventListener('mousedown', function (e) {
-      if (settings.panelMode !== 'fixed' || e.target !== dragHandle || e.button !== 0) return;
-      e.preventDefault();
-      dragHandle.style.cursor = 'grabbing';
-      dragState = { sX: e.clientX, sY: e.clientY, pL: panel.offsetLeft, pT: panel.offsetTop };
-      document.addEventListener('mousemove', onDragMove);
-      document.addEventListener('mouseup', onDragUp);
-    });
+    if (IS_MANABREW) {
+      // [data-card-preview] portal watching + React fiber introspection are
+      // Manabrew-specific; on MTGGoldfish / MTGDecks the DOM pointer paths are
+      // the only card source, so skip the observers entirely.
+      startMutationObserver();
+      startFiberPolling();
+    }
 
-    startMutationObserver();
     document.addEventListener('pointerover', onPointerOver);
     document.addEventListener('pointerout', onPointerOut);
     document.addEventListener('pointermove', function (e) {
@@ -1751,10 +1917,9 @@
     }
 
     fetchAndLoadDB();
-    startFiberPolling();
 
     updateMenuToggles();
-    LOG('v0.9.4 ready — empty-space hover on deck lists no longer snaps to the first card; fixed panel keeps the last hovered card and never auto-hides');
+    LOG('v1.0.0 ready — ' + SITE + ': hover a card name for the Simplified Chinese tooltip');
   }
 
   if (document.readyState === 'loading') {
