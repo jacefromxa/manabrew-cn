@@ -3,7 +3,7 @@
 // @name:zh-CN   万智牌中文悬浮翻译助手
 // @name:en      MTG Chinese Hover Translation Assistant
 // @namespace    https://play.manabrew.app/
-// @version      1.3.0
+// @version      1.4.0
 // @description  在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8、CubeCobra 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。
 // @description:zh-CN 在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8、CubeCobra 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
 // @description:en Show Simplified Chinese card info on hover for Manabrew, MTGGoldfish, MTGDecks.net, Scryfall, EDHREC, Moxfield, MTGTop8 and CubeCobra — name, type, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
@@ -915,13 +915,11 @@
     if (!r) return;
     var ps = { width: panel.offsetWidth || 300, height: panel.offsetHeight || 100 };
     // Sites with their own card-image hover panel (MTGGoldfish popover,
-    // Moxfield deck preview, CubeCobra autocard popup): anchor to IT and place
-    // our panel beside the image (right-first, never covering it). When the
-    // site popover isn't up yet or on other sites, fall back to the hovered
-    // element itself.
+    // CubeCobra autocard popup): anchor to IT and place our panel beside the
+    // image (right-first, never covering it). When the site popover isn't up
+    // yet or on other sites, fall back to the hovered element itself.
     var pr = null;
     if (SITE === 'mtggoldfish') pr = mtggoldfishPopoverRect();
-    else if (SITE === 'moxfield') pr = moxfieldPreviewRect();
     else if (SITE === 'cubecobra') pr = cubecobraPreviewRect();
     if (pr) {
       var beside = positionBesideCard(pr, ps, getViewport());
@@ -929,11 +927,15 @@
       panel.style.top = beside.top + 'px';
       return;
     }
+    // Moxfield: the tooltip follows the cursor (right of the mouse first,
+    // then left) instead of anchoring to a fixed preview panel. Normalize the
+    // point rect through getAnchorRect — rectFromPoint has no right/bottom,
+    // which would make calculatePanelPosition produce NaN.
+    if (SITE === 'moxfield') r = getAnchorRect(rectFromPoint(lastMouse.x, lastMouse.y));
     var opts = {};
-    // Default to the RIGHT of the hovered card (name or image); only
-    // MTGDecks keeps the panel on the left of its small price popup.
-    if (SITE === 'mtgdecks') opts.preferSide = 'left';
-    else if (!IS_MANABREW) opts.preferSide = 'right';
+    // Default to the RIGHT of the anchor (card name / image / cursor);
+    // calculatePanelPosition falls back to the left when the right is full.
+    if (!IS_MANABREW) opts.preferSide = 'right';
     var pos = calculatePanelPosition(r, ps, getViewport(), opts);
     panel.style.left = pos.left + 'px';
     panel.style.top = pos.top + 'px';
@@ -1208,6 +1210,9 @@
   // --- EDHREC --------------------------------------------------------------
   // Card name links <a href="/cards/{slug}">Name</a> everywhere; card pages
   // show <h3>Name (Card)</h3> and <img src="card-images.edhrec.com" alt="Name">.
+  // Articles render card names three ways in the prose: the /cards/ link, a
+  // mobile-only <span class="fake-link"> duplicate, and embedded card blocks
+  // <span class="Card_name__…">Name</span>.
   function edhrecHit(el) {
     var name = '';
     if (el.tagName === 'A' && /^\/cards\//.test(el.getAttribute('href') || '')) {
@@ -1217,6 +1222,15 @@
     } else if ((el.tagName === 'H2' || el.tagName === 'H3' || el.tagName === 'H4') &&
                /\(Card\)\s*$/.test((el.textContent || '').trim())) {
       name = (el.textContent || '').trim().replace(/\s*\(Card\)\s*$/, '');
+    } else if (el.tagName === 'SPAN') {
+      var cls = String(el.className || '');
+      if (cls === 'fake-link' && el.closest && el.closest('.edhrecp__link, [class*="ArticlePage_content"]')) {
+        // Article-prose mobile duplicate of a card link.
+        name = (el.textContent || '').trim().replace(/\s+/g, ' ');
+      } else if (cls.indexOf('Card_name') !== -1) {
+        // Embedded card block in an article: <span class="Card_name__…">Name</span>.
+        name = (el.textContent || '').trim().replace(/\s+/g, ' ');
+      }
     }
     if (!isValidCardName(name)) return null;
     return { el: el, name: name, identity: null };
@@ -1238,22 +1252,6 @@
     }
     if (!isValidCardName(name)) return null;
     return { el: el, name: name, identity: null };
-  }
-
-  // Moxfield's right-side deck preview panel updates to the hovered card —
-  // anchor our panel to it so the tooltip sits beside the site's own image.
-  // Deck pages carry TWO .deckview-image-wrapper elements: the left sidebar's
-  // deck-cover thumbnail (inside aside.deckview-image-container) and the right
-  // column's hover preview (inside .col-lg-3) — only the latter tracks the
-  // hovered card, so prefer it.
-  function moxfieldPreviewRect() {
-    try {
-      var w = document.querySelector('.col-lg-3 .deckview-image-wrapper') || document.querySelector('.deckview-image-wrapper:not(aside .deckview-image-wrapper)');
-      if (!w) return null;
-      var r = w.getBoundingClientRect();
-      if (!r || r.width < 100 || r.height < 100) return null;
-      return r;
-    } catch (_) { return null; }
   }
 
   // --- MTGTop8 -------------------------------------------------------------
@@ -2278,7 +2276,7 @@
     fetchAndLoadDB();
 
     updateMenuToggles();
-    LOG('v1.3.0 ready — ' + SITE + ': hover a card name or card image for the Simplified Chinese tooltip');
+    LOG('v1.4.0 ready — ' + SITE + ': hover a card name or card image for the Simplified Chinese tooltip');
   }
 
   if (document.readyState === 'loading') {

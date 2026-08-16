@@ -10,14 +10,14 @@
 |------|---------|------|
 | [Manabrew](https://play.manabrew.app/) | 战场（`data-card-preview` portal）、手牌、堆叠（React fiber 状态）、牌组选择目录页（`/play/offline/constructed` 等）、牌组编辑器（`/deck-editor`） | 原有站点，行为不变 |
 | [MTGGoldfish](https://www.mtggoldfish.com/) | 悬停卡名链接（`data-card-id`）或**纯卡图**（Visual 牌组视图、文章卡图瓦片、价格页，取 `alt` 卡名） | 卡名链接可解析出系列码 + 编号，未命中本地库时走 mtgch 精确端点；有原生卡图弹层，浮窗锚定弹层摆放在其右侧（空间不足换左侧/上下） |
-| [MTGDecks.net](https://mtgdecks.net/) | 悬停卡名链接（`image` 属性）、卡图瓦片或瓦片下方卡名 | 从卡图 URL 解析系列码 + 编号 |
+| [MTGDecks.net](https://mtgdecks.net/) | 悬停卡名链接（`image` 属性）、卡图瓦片或瓦片下方卡名 | 从卡图 URL 解析系列码 + 编号；浮窗先右后左 |
 | [Scryfall](https://scryfall.com/) | 悬停卡页大图（`img.card`，alt 如 `Name (Set #Num)`）、卡名标题（`h1.card-text-title`）、列表链接 | 卡页 URL `/card/{set}/{num}/` 直接提供系列码 + 编号 |
-| [EDHREC](https://edhrec.com/) | 悬停卡名链接（`/cards/{slug}`）、卡图（`card-images.edhrec.com`）、卡页标题 | — |
-| [Moxfield](https://moxfield.com/) | 悬停牌组列表卡名（`a.table-deck-row-link`）或卡图（`assets.moxfield.net/cards`） | 有原生悬停预览面板，浮窗锚定预览并摆放在其左侧（右侧空间不足时） |
+| [EDHREC](https://edhrec.com/) | 悬停卡名链接（`/cards/{slug}`）、卡图（`card-images.edhrec.com`）、卡页标题、**文章内嵌卡名**（`Card_name__*` 与 `fake-link`） | — |
+| [Moxfield](https://moxfield.com/) | 悬停牌组列表卡名（`a.table-deck-row-link`）或卡图（`assets.moxfield.net/cards`） | 浮窗**跟随鼠标**，优先鼠标右侧、空间不足换左侧 |
 | [MTGTop8](https://www.mtgtop8.com/) | 悬停牌组列表行（`.deck_line` / `AffCard(V)` 行） | 从 `AffCard(V)` 参数解析系列码 + 编号（带数字系列码如 MH2 靠 mtgch 名字门禁兜底） |
 | [CubeCobra](https://cubecobra.com/) | 悬停牌组/列表卡名行（`.list-group-card`）、卡图（`assets.cubecobra.com/cardimages`）、搜索页卡图 | 有原生悬停弹层（`#autocardPopup`），浮窗锚定弹层摆放在其右侧（空间不足换左侧/上下） |
 
-八个站点共用同一套翻译数据库、mtgch API 回退、样式设置与固定浮窗开关。浮窗默认显示在卡牌/卡图**右侧**（空间不足换左侧，有原生卡图弹层的站点锚定弹层，绝不遮挡卡图）；MTGDecks 保持左侧偏好。跨站请求走 `GM_xmlhttpRequest`（无则回退 `fetch`），不受站点 Content-Security-Policy（如 Scryfall 的严格 `connect-src`）限制。
+八个站点共用同一套翻译数据库、mtgch API 回退、样式设置与固定浮窗开关。浮窗统一遵循**先右后左**规范：默认显示在锚点（卡牌/卡图/鼠标）**右侧**，空间不足换左侧；Moxfield 浮窗跟随鼠标；有原生卡图弹层的站点（MTGGoldfish / CubeCobra）锚定弹层，绝不遮挡卡图。跨站请求走 `GM_xmlhttpRequest`（无则回退 `fetch`），不受站点 Content-Security-Policy（如 Scryfall 的严格 `connect-src`）限制。
 
 ## 安装
 

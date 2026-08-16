@@ -9,8 +9,8 @@
   <li><strong>本地卡缺失字段自动补齐</strong>：本地数据缺规则文本 / 费用 / 攻防时，后台向 API 补齐，已有的本地翻译不被覆盖。</li>
   <li><strong>完全可定制的样式</strong>：底色、边框、每个文字区块（卡名 / 英文卡名 / 类别行 / 规则文本 / 攻防 / 来源脚注）各自的颜色与字号（上限 30px），实时预览。</li>
   <li><strong>面板跟随 / 固定</strong>：脚本菜单唯一开关切换，固定模式可拖动，且永不自动隐藏——鼠标移开后保持上次悬停的卡牌翻译，直到下一个悬停动作刷新内容。</li>
-  <li><strong>站点自带弹层不重叠</strong>：MTGGoldfish / Moxfield / CubeCobra 有原生卡图悬停弹层（popover / 右侧预览面板 / autocard 弹层），翻译浮窗会锚定该卡图并摆放在其<strong>右侧</strong>（空间不足换左侧/上下，自动换边），绝不遮挡卡图；MTGDecks.net 上浮窗默认显示在卡牌左侧，避开价格弹层。</li>
-  <li><strong>纯卡图同样支持悬停</strong>：只显示卡图而无卡名文本的地方（MTGGoldfish Visual 视图、文章卡图瓦片，以及 Scryfall / EDHREC / Moxfield 的卡图），悬停即可显示中文翻译（从 <code>alt</code> 取卡名，自动剥离 <code>[SET]</code>、<code>(Set #Num)</code> 等注解）。</li>
+  <li><strong>先右后左统一规范</strong>：浮窗默认显示在锚点（卡牌 / 卡图 / 鼠标）<strong>右侧</strong>、空间不足换左侧；Moxfield 浮窗<strong>跟随鼠标</strong>；有原生卡图弹层的站点（MTGGoldfish / CubeCobra）锚定弹层摆放在卡图右侧，绝不遮挡卡图。</li>
+  <li><strong>纯卡图同样支持悬停</strong>：只显示卡图而无卡名文本的地方（MTGGoldfish Visual 视图、文章卡图瓦片，以及 Scryfall / EDHREC / Moxfield 的卡图），以及 EDHREC 文章中的内嵌卡名（<code>Card_name__*</code> / <code>fake-link</code>），悬停即可显示中文翻译（从 <code>alt</code> 取卡名，自动剥离 <code>[SET]</code>、<code>(Set #Num)</code> 等注解）。</li>
   <li><strong>严格 CSP 站点也能用</strong>：跨站请求优先走 <code>GM_xmlhttpRequest</code>（无则回退 <code>fetch</code>），不受站点 Content-Security-Policy（如 Scryfall 的严格 <code>connect-src</code>）限制。</li>
 </ul>
 
@@ -54,7 +54,8 @@
 
 <h2>更新日志</h2>
 <ul>
-    <li><strong>v1.3.0</strong> — 新增 <strong>CubeCobra</strong>（cubecobra.com）支持：牌组 / 列表卡名行（<code>.list-group-card</code>）、卡图（<code>assets.cubecobra.com/cardimages</code>，alt 取卡名）、搜索页卡图；锚定其原生悬停弹层（<code>#autocardPopup</code>）摆放在卡图右侧（空间不足换左侧 / 上下），绝不遮挡卡图。</li>
+    <li><strong>v1.4.0</strong> — 勘误与补全：① Moxfield 浮窗改为<strong>跟随鼠标</strong>（优先鼠标右侧、空间不足换左侧，修复鼠标锚点缺 right/bottom 导致定位 NaN 的问题）；② 定位规范统一为<strong>先右后左</strong>，MTGDecks 同样遵从；③ EDHREC <strong>文章内嵌卡名</strong>支持（<code>Card_name__*</code> 卡块与 <code>fake-link</code> 移动端副本）；④ 移除 Moxfield 原生预览面板锚定。</li>
+  <li><strong>v1.3.0</strong> — 新增 <strong>CubeCobra</strong>（cubecobra.com）支持：牌组 / 列表卡名行（<code>.list-group-card</code>）、卡图（<code>assets.cubecobra.com/cardimages</code>，alt 取卡名）、搜索页卡图；锚定其原生悬停弹层（<code>#autocardPopup</code>）摆放在卡图右侧（空间不足换左侧 / 上下），绝不遮挡卡图。</li>
   <li><strong>v1.2.0</strong> — 脚本更名 <strong>万智牌中文悬浮翻译助手</strong>（旧名「Manabrew 简体中文卡牌浮窗」）；控制台日志前缀改为 <code>[mtg-cn]</code>；更新简介中的支持站点清单（Manabrew / MTGGoldfish / MTGDecks.net / Scryfall / EDHREC / Moxfield / MTGTop8）。注意：更名后 Greasy Fork / 油猴按「名称 + 命名空间」识别脚本，旧安装不会自动更新，需重新安装（或删除旧脚本后装新版）。</li>
 <li><strong>v1.1.0</strong> — 新增 <strong>Scryfall、EDHREC、Moxfield、MTGTop8</strong> 四个站点支持（卡名悬停 + 卡图悬停）：Scryfall 卡页大图 / 标题 / 列表链接（卡页 URL 直接提供系列码 + 编号）、EDHREC 卡名链接 / 卡图、Moxfield 牌组列表卡名 / 卡图（锚定其原生悬停预览面板）、MTGTop8 牌组行（从 <code>AffCard(V)</code> 参数解析系列码 + 编号，兼容 classic / visual 两种牌表变体）。浮窗默认显示在卡图<strong>右侧</strong>、空间不足换左侧；跨站请求改走 <code>GM_xmlhttpRequest</code>（无则回退 <code>fetch</code>），突破 Scryfall 等严格 CSP 站点的 <code>connect-src</code> 限制。</li>
   <li><strong>v1.0.2</strong> — 修复 MTGGoldfish <strong>纯卡图悬停只显示英文名 + 系列码</strong>的问题：价格页等处的卡图 <code>alt</code> 带 <code>[FDN]</code> 这类系列码后缀（如 <code>alt="Spectral Sailor [FDN]"</code>），查询前新增 <code>cleanCardName</code> 清洗注解（方括号一律剥离，仅剥离末尾的 <code>(F)/(FOIL)/(数字)</code> 标记，带括号的真卡名如「B.F.M. (Big Furry Monster)」不受影响），本地库命中后正常显示中文翻译。</li>
