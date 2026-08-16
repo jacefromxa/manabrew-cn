@@ -3,7 +3,7 @@
 // @name:zh-CN   Manabrew 简体中文卡牌浮窗
 // @name:en      Manabrew Simplified Chinese Card Tooltip
 // @namespace    https://play.manabrew.app/
-// @version      1.0.0
+// @version      1.0.1
 // @description  在 Manabrew、MTGGoldfish、MTGDecks.net 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。
 // @description:zh-CN 在 Manabrew、MTGGoldfish、MTGDecks.net 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
 // @description:en Show Simplified Chinese card info on hover for Manabrew, MTGGoldfish and MTGDecks.net — name, type, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
@@ -875,9 +875,12 @@
       }
     }
     var opts = {};
-    // MTGGoldfish / MTGDecks open their own card popover on the right of the
-    // name — keep our translation panel on the left to avoid stacking on it.
-    if (!IS_MANABREW) opts.preferSide = 'left';
+    // MTGGoldfish: native card popover opens on the right of the name, and the
+    // user prefers the translation panel on the right — so default right of
+    // the link too. MTGDecks keeps the panel on the left of its small price
+    // popup.
+    if (SITE === 'mtggoldfish') opts.preferSide = 'right';
+    else if (SITE === 'mtgdecks') opts.preferSide = 'left';
     var pos = calculatePanelPosition(r, ps, getViewport(), opts);
     panel.style.left = pos.left + 'px';
     panel.style.top = pos.top + 'px';
@@ -986,6 +989,10 @@
   //   mtggoldfish: <a data-card-id="Name [SET]" href="/price/{set-slug}/{num}/{slug}">
   //     → name = link text; identity = set code from data-card-id + collector
   //       number from the /price/ href (feeds the exact mtgch endpoint).
+  //     Pure-image displays (visual deck view / article tiles) are
+  //     <a href="/price/…"><img alt="Name" src="cards.mtggoldfish.com/images/…"></a>
+  //     → name from the img alt; the UUID image URL carries no set/number, so
+  //       those hover as name-only (fuzzy search fallback).
   //   mtgdecks:    <a href="/prices/{slug}" image="/img/card/{SET}/{slug}-{num}.jpg">
   //     → name = link text (or the inner img's alt); identity parsed from the
   //       image URL. Card tiles (staples/visual views) are <img … alt="Name"
@@ -993,32 +1000,59 @@
   //       container fallback for the name label under a tile.
   // Returns a hit { el, name, identity } or null.
 
+  // A card face image on mtggoldfish: their card-image CDN
+  // (cards.mtggoldfish.com/images/…, cdn1.mtggoldfish.com/images/…) or a
+  // Scryfall image — but never the generic card back or site assets.
+  function isMtggoldfishCardImage(img) {
+    var src = img.src || '';
+    if (!src) return false;
+    if (/\/gf\/back\.jpg/.test(src) || /\/assets\//.test(src)) return false;
+    return /mtggoldfish\.com\/images\//.test(src) || /scryfall/.test(src);
+  }
+
   function mtggoldfishHit(el) {
-    if (el.tagName !== 'A') return null;
-    var cardId = el.getAttribute('data-card-id');
-    if (!cardId) return null;
-    var name = (el.textContent || '').trim();
-    if (!isValidCardName(name)) {
-      // Anchors that wrap an image (hover thumbnails) have no text — take the
-      // img alt, which is the clean card name.
-      var innerImg = el.querySelector('img[alt]');
-      if (innerImg) name = (innerImg.getAttribute('alt') || '').trim();
+    if (el.tagName !== 'A' && el.tagName !== 'IMG') return null;
+
+    if (el.tagName === 'A') {
+      var cardId = el.getAttribute('data-card-id');
+      if (!cardId) {
+        // Pure-image cards (visual deck view / article tiles): the anchor has
+        // no data-card-id — fall through to the image handling below.
+        var wrapImg = el.querySelector('img');
+        if (!wrapImg || !isMtggoldfishCardImage(wrapImg)) return null;
+        el = wrapImg;
+        cardId = null;
+      } else {
+        var name = (el.textContent || '').trim();
+        if (!isValidCardName(name)) {
+          // Anchors that wrap an image (hover thumbnails) have no text — take
+          // the img alt, which is the clean card name.
+          var innerImg = el.querySelector('img[alt]');
+          if (innerImg) name = (innerImg.getAttribute('alt') || '').trim();
+        }
+        if (!isValidCardName(name)) {
+          // Last resort: strip "[SET]" / "<annotation>" / "(F)" from data-card-id
+          name = cardId
+            .replace(/<[^>]+>/g, ' ')
+            .replace(/\[[A-Z0-9]{2,6}\]/g, ' ')
+            .replace(/\([^)]*\)/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        }
+        if (!isValidCardName(name)) return null;
+        var setM = cardId.match(/\[([A-Z0-9]{2,6})\]/);
+        var numM = (el.getAttribute('href') || '').match(/\/price\/[^/]+\/(\d+)\//);
+        var identity = null;
+        if (setM && numM) identity = { setCode: setM[1], cardNumber: numM[1] };
+        return { el: el, name: name, identity: identity };
+      }
     }
-    if (!isValidCardName(name)) {
-      // Last resort: strip "[SET]" / "<annotation>" / "(F)" from data-card-id
-      name = cardId
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/\[[A-Z0-9]{2,6}\]/g, ' ')
-        .replace(/\([^)]*\)/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-    }
-    if (!isValidCardName(name)) return null;
-    var setM = cardId.match(/\[([A-Z0-9]{2,6})\]/);
-    var numM = (el.getAttribute('href') || '').match(/\/price\/[^/]+\/(\d+)\//);
-    var identity = null;
-    if (setM && numM) identity = { setCode: setM[1], cardNumber: numM[1] };
-    return { el: el, name: name, identity: identity };
+
+    // Pure card image: name from alt; UUID image URLs expose no set/number.
+    if (!isMtggoldfishCardImage(el)) return null;
+    var imgName = (el.getAttribute('alt') || '').trim();
+    if (!isValidCardName(imgName) || imgName === 'Generic Card Back') return null;
+    return { el: el, name: imgName, identity: null };
   }
 
   function mtgdecksIdentity(url) {
@@ -1095,26 +1129,27 @@
   }
 
   // Place the panel NEXT TO `anchor` (the native card image) without covering
-  // it: prefer left, then right, then below, then above; only clamp as a last
-  // resort. The generic space-based placement can't express this ordering.
+  // it: prefer right (user preference), then left, then below, then above;
+  // only clamp as a last resort. The generic space-based placement can't
+  // express this ordering.
   function positionBesideCard(anchorRect, panelSize, viewport) {
     var w = Math.max(0, panelSize.width || 0);
     var h = Math.max(0, panelSize.height || 0);
     var gap = 12;
     var margin = 12;
-    var fitsLeft = anchorRect.left - margin >= w + gap;
     var fitsRight = viewport.width - anchorRect.right - margin >= w + gap;
+    var fitsLeft = anchorRect.left - margin >= w + gap;
     var fitsBelow = viewport.height - anchorRect.bottom - margin >= h + gap;
     var fitsAbove = anchorRect.top - margin >= h + gap;
     var clampX = function (x) { return Math.min(Math.max(x, margin), Math.max(margin, viewport.width - w - margin)); };
     var clampY = function (y) { return Math.min(Math.max(y, margin), Math.max(margin, viewport.height - h - margin)); };
     var centerTop = function () { return clampY(anchorRect.top + (anchorRect.height - h) / 2); };
     var left, top;
-    if (fitsLeft) {
-      left = anchorRect.left - w - gap;
-      top = centerTop();
-    } else if (fitsRight) {
+    if (fitsRight) {
       left = anchorRect.right + gap;
+      top = centerTop();
+    } else if (fitsLeft) {
+      left = anchorRect.left - w - gap;
       top = centerTop();
     } else if (fitsBelow) {
       left = clampX(anchorRect.left);
@@ -1984,7 +2019,7 @@
     fetchAndLoadDB();
 
     updateMenuToggles();
-    LOG('v1.0.0 ready — ' + SITE + ': hover a card name for the Simplified Chinese tooltip');
+    LOG('v1.0.1 ready — ' + SITE + ': hover a card name or card image for the Simplified Chinese tooltip');
   }
 
   if (document.readyState === 'loading') {

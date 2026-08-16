@@ -9,10 +9,10 @@
 | 站点 | 悬停方式 | 说明 |
 |------|---------|------|
 | [Manabrew](https://play.manabrew.app/) | 战场（`data-card-preview` portal）、手牌、堆叠（React fiber 状态）、牌组选择目录页（`/play/offline/constructed` 等）、牌组编辑器（`/deck-editor`） | 原有站点，行为不变 |
-| [MTGGoldfish](https://www.mtggoldfish.com/) | 悬停卡名链接（`data-card-id`）或卡图 | 牌组页、价格页、Metagame 页等；从链接解析出系列码 + 编号，未命中本地库时走 mtgch 精确端点 |
+| [MTGGoldfish](https://www.mtggoldfish.com/) | 悬停卡名链接（`data-card-id`）或**纯卡图**（Visual 牌组视图、文章卡图瓦片，取 `alt` 卡名） | 牌组页、价格页、Metagame 页等；卡名链接可解析出系列码 + 编号，未命中本地库时走 mtgch 精确端点；纯卡图的 UUID 图源不含系列码，走按名查询回退 |
 | [MTGDecks.net](https://mtgdecks.net/) | 悬停卡名链接（`image` 属性）、卡图瓦片或瓦片下方卡名 | 牌组（DECK VIEW / VISUAL VIEW）、Staples、价格页等；同样解析系列码 + 编号 |
 
-三个站点共用同一套翻译数据库、mtgch API 回退、样式设置与固定浮窗开关。MTGGoldfish 上，当站点自带的卡图弹层出现时，浮窗会**锚定卡图弹层**并摆放在其旁边（左→右→下→上，空间不足自动换边），绝不遮挡卡图；弹层出现前短暂以卡名链接为锚。MTGDecks 的浮窗默认显示在卡牌左侧，避开站点自带的价格弹层。
+三个站点共用同一套翻译数据库、mtgch API 回退、样式设置与固定浮窗开关。MTGGoldfish 上，当站点自带的卡图弹层出现时，浮窗会**锚定卡图弹层**并摆放在其**右侧**（右→左→下→上，空间不足自动换边），绝不遮挡卡图；弹层出现前短暂以卡名链接为锚。MTGDecks 的浮窗默认显示在卡牌左侧，避开站点自带的价格弹层。
 
 ## 安装
 

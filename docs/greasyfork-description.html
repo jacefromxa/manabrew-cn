@@ -9,7 +9,8 @@
   <li><strong>本地卡缺失字段自动补齐</strong>：本地数据缺规则文本 / 费用 / 攻防时，后台向 API 补齐，已有的本地翻译不被覆盖。</li>
   <li><strong>完全可定制的样式</strong>：底色、边框、每个文字区块（卡名 / 英文卡名 / 类别行 / 规则文本 / 攻防 / 来源脚注）各自的颜色与字号（上限 30px），实时预览。</li>
   <li><strong>面板跟随 / 固定</strong>：脚本菜单唯一开关切换，固定模式可拖动，且永不自动隐藏——鼠标移开后保持上次悬停的卡牌翻译，直到下一个悬停动作刷新内容。</li>
-  <li><strong>站点自带弹层不重叠</strong>：MTGGoldfish 上，站点自带的卡图悬停弹层出现时，翻译浮窗会锚定该卡图并摆放在其旁边（左→右→下→上自动换边），绝不遮挡卡图；MTGDecks.net 上浮窗默认显示在卡牌左侧，避开价格弹层。</li>
+  <li><strong>站点自带弹层不重叠</strong>：MTGGoldfish 上，站点自带的卡图悬停弹层出现时，翻译浮窗会锚定该卡图并摆放在其<strong>右侧</strong>（右→左→下→上自动换边），绝不遮挡卡图；MTGDecks.net 上浮窗默认显示在卡牌左侧，避开价格弹层。</li>
+  <li><strong>纯卡图同样支持悬停</strong>：MTGGoldfish 只显示卡图而无卡名文本的地方（牌组 Visual 视图、文章卡图瓦片等），悬停卡图即可显示中文翻译（从 <code>alt</code> 取卡名）。</li>
 </ul>
 
 <h2>使用方法</h2>
@@ -52,6 +53,7 @@
 
 <h2>更新日志</h2>
 <ul>
+  <li><strong>v1.0.1</strong> — MTGGoldfish 两项改进：① 浮窗默认摆放在站点卡图弹层的<strong>右侧</strong>（右→左→下→上换边，空间不足才换方向）；② 支持<strong>纯卡图</strong>悬停——只显示卡图没有卡名文本的地方（牌组 Visual 视图、文章卡图瓦片等）也能显示中文翻译（从 <code>alt</code> 取卡名，UUID 图源不含系列码时按名查询）。</li>
   <li><strong>v1.0.0</strong> — 新增 <strong>MTGGoldfish</strong>（mtggoldfish.com）与 <strong>MTGDecks.net</strong>（mtgdecks.net）支持：悬停卡名链接 / 卡图即可显示同一套中文浮窗。从链接属性解析系列码 + 编号（MTGGoldfish：<code>data-card-id</code> + <code>/price/</code> href；MTGDecks：卡图 URL），未命中本地库时直接走 mtgch 精确端点；MTGGoldfish 上浮窗锚定站点自带的卡图弹层并摆放在其旁边（左→右→下→上换边，绝不遮挡卡图），MTGDecks 上默认在卡牌左侧；MTGGoldfish Turbo 页面切换后浮窗自动重建。</li>
   <li><strong>v0.9.4</strong> — 修复牌组列表 / 选择页在<strong>空白处悬停误显示首张卡牌</strong>的问题：此前鼠标悬停在卡牌间隙、列表空白区时，会把页面内第一张卡牌封面（如「希望之光尼科」）误判为悬停目标而常驻显示，且悬停实际卡牌反而无法显示。现在空白处不再触发浮窗，只有悬停在真实卡牌 / 卡图 / 预览大图上才显示。</li>
   <li><strong>v0.9.3</strong> — 修复「固定浮窗」会自动消失的问题：固定模式下浮窗不再被移开鼠标 / 预览卸载 / 后台轮询自动隐藏，可一直固定在屏幕上（内容仍随悬停切换）。</li>
