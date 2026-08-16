@@ -11,11 +11,11 @@
 |------|-----|
 | **名称 (Name)** | `Manabrew 简体中文卡牌浮窗` |
 | **命名空间 (Namespace)** | `https://play.manabrew.app/` |
-| **简介 (Description / Synopsis)** | 在 Manabrew、MTGGoldfish、MTGDecks.net 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。 |
-| **版本 (Version)** | `1.0.2` |
+| **简介 (Description / Synopsis)** | 在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。 |
+| **版本 (Version)** | `1.1.0` |
 | **作者 (Author)** | `jacefromxa` |
 | **许可 (License)** | `GPL-3.0` |
-| **适用站点 (Match)** | `https://play.manabrew.app/*`、`https://www.mtggoldfish.com/*`、`https://mtggoldfish.com/*`、`https://www.mtgdecks.net/*`、`https://mtgdecks.net/*` |
+| **适用站点 (Match)** | `https://play.manabrew.app/*`、`https://www.mtggoldfish.com/*`、`https://mtggoldfish.com/*`、`https://www.mtgdecks.net/*`、`https://mtgdecks.net/*`、`https://scryfall.com/*`、`https://edhrec.com/*`、`https://moxfield.com/*`、`https://www.mtgtop8.com/*`、`https://mtgtop8.com/*` |
 | **主页 (Homepage)** | `https://github.com/jacefromxa/manabrew-cn` |
 | **安装地址 (Download URL)** | `https://raw.githubusercontent.com/jacefromxa/manabrew-cn/main/manabrew-cn.user.js` |
 | **更新地址 (Update URL)** | 同上（GitHub Raw 托管，Tampermonkey 可自动检查更新） |
@@ -31,18 +31,19 @@
 
 ### 这是什么
 
-一个为开源万智牌（MTG）在线客户端 [Manabrew](https://play.manabrew.app/)、卡价/牌组站 [MTGGoldfish](https://www.mtggoldfish.com/) 与 [MTGDecks.net](https://mtgdecks.net/) 开发的用户脚本。悬停任意卡牌（卡名链接或卡图），自动在旁边显示**简体中文翻译浮窗**——中文卡名、英文原名、类别行、规则文本、法术力费用与攻防，正文与费用中的 MTG 符号（`{W}`、`{T}`、`{2/W}` 等）以彩色图标渲染，观感接近真实卡牌。
+一个为开源万智牌（MTG）在线客户端 [Manabrew](https://play.manabrew.app/)、卡价/牌组站 [MTGGoldfish](https://www.mtggoldfish.com/) 与 [MTGDecks.net](https://mtgdecks.net/)、卡查 [Scryfall](https://scryfall.com/)、指挥官统计 [EDHREC](https://edhrec.com/)、牌组构建 [Moxfield](https://moxfield.com/) 与赛事牌组库 [MTGTop8](https://www.mtgtop8.com/) 开发的用户脚本。悬停任意卡牌（卡名链接或卡图），自动在旁边显示**简体中文翻译浮窗**——中文卡名、英文原名、类别行、规则文本、法术力费用与攻防，正文与费用中的 MTG 符号（`{W}`、`{T}`、`{2/W}` 等）以彩色图标渲染，观感接近真实卡牌。
 
 ### 功能特性
 
-- **覆盖全部卡牌区域**：Manabrew 战场（预览大图）、手牌、堆叠、牌组选择目录、牌组编辑器，双面牌自动显示当前面的翻译；MTGGoldfish 与 MTGDecks.net 的牌组页 / 价格页 / Metagame / Staples 等页面悬停卡名或卡图即可。
+- **覆盖全部卡牌区域**：Manabrew 战场（预览大图）、手牌、堆叠、牌组选择目录、牌组编辑器，双面牌自动显示当前面的翻译；MTGGoldfish / MTGDecks.net / Scryfall / EDHREC / Moxfield / MTGTop8 的牌组页 / 价格页 / 卡查页 / 统计页等悬停卡名或卡图即可。
 - **本地数据库优先，零网络延迟**：内置约 36,600 张卡牌的简中数据（35,000+ 含完整规则文本），首次加载后存入浏览器缓存，日常使用不产生任何请求。
-- **智能 API 回退**：少数未翻译卡牌自动查询 [mtgch.com 中文卡查](https://mtgch.com/api/v1/docs)。能拿到卡牌身份（系列码 + 编号）的路径——Manabrew 手牌/堆叠/封面/预览，以及 MTGGoldfish / MTGDecks.net 的卡名链接（分别从 `data-card-id` + `/price/` href 与卡图 URL 解析）——走**精确端点**单次请求，不会因同名卡模糊匹配而显示错牌；每张牌结果长期缓存，只请求一次。
+- **智能 API 回退**：少数未翻译卡牌自动查询 [mtgch.com 中文卡查](https://mtgch.com/api/v1/docs)。能拿到卡牌身份（系列码 + 编号）的路径——Manabrew 手牌/堆叠/封面/预览、MTGGoldfish 的 `data-card-id` + `/price/` href、MTGDecks 的卡图 URL、Scryfall 卡页 URL `/card/{set}/{num}/`、MTGTop8 的 `AffCard(V)` 参数——走**精确端点**单次请求，不会因同名卡模糊匹配而显示错牌；每张牌结果长期缓存，只请求一次。
 - **本地卡缺失字段自动补齐**：本地数据缺规则文本 / 费用 / 攻防时，后台向 API 补齐，已有的本地翻译不被覆盖。
 - **完全可定制的样式**：底色、边框、每个文字区块（卡名 / 英文卡名 / 类别行 / 规则文本 / 攻防 / 来源脚注）各自的颜色与字号（上限 30px），实时预览。
 - **面板跟随 / 固定**：脚本菜单唯一开关切换，固定模式可拖动，且永不自动隐藏——鼠标移开后保持上次悬停的卡牌翻译，直到下一个悬停动作刷新内容。
-- **站点自带弹层不重叠**：MTGGoldfish 上，站点自带的卡图悬停弹层出现时，翻译浮窗会锚定该卡图并摆放在其**右侧**（右→左→下→上自动换边），绝不遮挡卡图；MTGDecks.net 上浮窗默认显示在卡牌左侧，避开价格弹层。
-- **纯卡图同样支持悬停**：MTGGoldfish 只显示卡图而无卡名文本的地方（牌组 Visual 视图、文章卡图瓦片等），悬停卡图即可显示中文翻译（从 `alt` 取卡名）。
+- **站点自带弹层不重叠**：MTGGoldfish / Moxfield 有原生卡图悬停弹层（分别为 popover 与右侧预览面板），翻译浮窗会锚定该卡图并摆放在其**右侧**（空间不足换左侧/上下，自动换边），绝不遮挡卡图；MTGDecks.net 上浮窗默认显示在卡牌左侧，避开价格弹层。
+- **纯卡图同样支持悬停**：MTGGoldfish 只显示卡图而无卡名文本的地方（牌组 Visual 视图、文章卡图瓦片等）、Scryfall / EDHREC / Moxfield 的卡图，悬停即可显示中文翻译（从 `alt` 取卡名，自动剥离 `[SET]`、`(Set #Num)` 等注解）。
+- **严格 CSP 站点也能用**：跨站请求优先走 `GM_xmlhttpRequest`（无则回退 `fetch`），不受站点 Content-Security-Policy（如 Scryfall 的严格 `connect-src`）限制，Scryfall 等站点同样能加载本地库与 API 回退。
 
 ### 使用方法
 
@@ -72,7 +73,7 @@ Tampermonkey / Violentmonkey 菜单 → **⚙ 样式设置**：
 
 - 支持 Tampermonkey / Violentmonkey。
 - 需要浏览器支持 `DecompressionStream`（Chrome 80+ / Edge 80+ / Firefox 113+ / Safari 16.4+），不支持时自动降级，功能不受影响。
-- 仅在 `https://play.manabrew.app/*`、`https://www.mtggoldfish.com/*`、`https://mtgdecks.net/*`（含无 www 域名）下生效。
+- 仅在 `https://play.manabrew.app/*`、`https://www.mtggoldfish.com/*`、`https://mtgdecks.net/*`、`https://scryfall.com/*`、`https://edhrec.com/*`、`https://moxfield.com/*`、`https://www.mtgtop8.com/*`（含无 www 域名）下生效。
 
 ### 常见问题
 
@@ -82,6 +83,7 @@ Tampermonkey / Violentmonkey 菜单 → **⚙ 样式设置**：
 
 ### 更新日志
 
+- **v1.1.0** — 新增 **Scryfall、EDHREC、Moxfield、MTGTop8** 四个站点支持（卡名悬停 + 卡图悬停）：Scryfall 卡页大图/标题/列表链接（卡页 URL 直接提供系列码+编号）、EDHREC 卡名链接/卡图、Moxfield 牌组列表卡名/卡图（锚定其原生悬停预览面板）、MTGTop8 牌组行（从 `AffCard(V)` 参数解析系列码+编号，兼容 classic/visual 两种牌表变体）。浮窗默认显示在卡图**右侧**、空间不足换左侧；跨站请求改走 `GM_xmlhttpRequest`（无则回退 `fetch`），突破 Scryfall 等严格 CSP 站点的 `connect-src` 限制。
 - **v1.0.2** — 修复 MTGGoldfish **纯卡图悬停只显示英文名 + 系列码**的问题：价格页等处的卡图 `alt` 带 `[FDN]` 这类系列码后缀（如 `alt="Spectral Sailor [FDN]"`），查询前新增 `cleanCardName` 清洗注解（方括号一律剥离，仅剥离末尾的 `(F)/(FOIL)/(数字)` 标记，带括号的真卡名如「B.F.M. (Big Furry Monster)」不受影响），本地库命中后正常显示中文翻译。
 - **v1.0.1** — MTGGoldfish 两项改进：① 浮窗默认摆放在站点卡图弹层的**右侧**（右→左→下→上换边，空间不足才换方向）；② 支持**纯卡图**悬停——只显示卡图没有卡名文本的地方（牌组 Visual 视图、文章卡图瓦片等）也能显示中文翻译（从 `alt` 取卡名，UUID 图源不含系列码时按名查询）。
 - **v1.0.0** — 新增 **MTGGoldfish**（mtggoldfish.com）与 **MTGDecks.net**（mtgdecks.net）支持：悬停卡名链接 / 卡图即可显示同一套中文浮窗。从链接属性解析系列码 + 编号（MTGGoldfish：`data-card-id` + `/price/` href；MTGDecks：卡图 URL），未命中本地库时直接走 mtgch 精确端点；MTGGoldfish 上浮窗锚定站点自带的卡图弹层并摆放在其旁边（左→右→下→上换边，绝不遮挡卡图），MTGDecks 上默认在卡牌左侧；MTGGoldfish Turbo 页面切换后浮窗自动重建。

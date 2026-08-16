@@ -3,10 +3,10 @@
 // @name:zh-CN   Manabrew 简体中文卡牌浮窗
 // @name:en      Manabrew Simplified Chinese Card Tooltip
 // @namespace    https://play.manabrew.app/
-// @version      1.0.2
-// @description  在 Manabrew、MTGGoldfish、MTGDecks.net 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。
-// @description:zh-CN 在 Manabrew、MTGGoldfish、MTGDecks.net 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
-// @description:en Show Simplified Chinese card info on hover for Manabrew, MTGGoldfish and MTGDecks.net — name, type, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
+// @version      1.1.0
+// @description  在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。
+// @description:zh-CN 在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
+// @description:en Show Simplified Chinese card info on hover for Manabrew, MTGGoldfish, MTGDecks.net, Scryfall, EDHREC, Moxfield and MTGTop8 — name, type, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
 // @author       jacefromxa
 // @license      GPL-3.0
 // @match        https://play.manabrew.app/*
@@ -14,12 +14,21 @@
 // @match        https://mtggoldfish.com/*
 // @match        https://www.mtgdecks.net/*
 // @match        https://mtgdecks.net/*
+// @match        https://scryfall.com/*
+// @match        https://www.scryfall.com/*
+// @match        https://edhrec.com/*
+// @match        https://www.edhrec.com/*
+// @match        https://moxfield.com/*
+// @match        https://www.moxfield.com/*
+// @match        https://mtgtop8.com/*
+// @match        https://www.mtgtop8.com/*
 // @run-at       document-idle
 // @updateURL    https://raw.githubusercontent.com/jacefromxa/manabrew-cn/main/manabrew-cn.user.js
 // @downloadURL  https://raw.githubusercontent.com/jacefromxa/manabrew-cn/main/manabrew-cn.user.js
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
+// @grant        GM_xmlhttpRequest
 // ==/UserScript==
 
 (function () {
@@ -54,17 +63,26 @@
   var API_CACHE_PREFIX = 'mbrw-api3-';
 
   // --- Site detection ------------------------------------------------------
-  // v1.0.0: the same hover-translation panel now serves three sites.
+  // The same hover-translation panel serves seven sites:
   //   manabrew    play.manabrew.app   — canvas game, cards surface via the
   //               [data-card-preview] portal + React fiber introspection
   //   mtggoldfish www.mtggoldfish.com — card names are
   //               <a data-card-id="Name [SET]" href="/price/{set}/{num}/{slug}">
   //   mtgdecks    mtgdecks.net        — card names are
   //               <a href="/prices/…" image="/img/card/{SET}/{slug}-{num}.jpg">
+  //   scryfall    scryfall.com        — card page h1.card-text-title + img.card
+  //   edhrec      edhrec.com          — <a href="/cards/{slug}"> + card-images CDN
+  //   moxfield    moxfield.com        — a.table-deck-row-link + assets CDN,
+  //               with a native hover preview panel (.deckview-image-wrapper)
+  //   mtgtop8     mtgtop8.com         — .deck_line rows with .L14 name spans
   function detectSite() {
     var h = String(location.hostname || '').toLowerCase();
     if (h.indexOf('mtggoldfish') !== -1) return 'mtggoldfish';
     if (h.indexOf('mtgdecks') !== -1) return 'mtgdecks';
+    if (h.indexOf('scryfall') !== -1) return 'scryfall';
+    if (h.indexOf('edhrec') !== -1) return 'edhrec';
+    if (h.indexOf('moxfield') !== -1) return 'moxfield';
+    if (h.indexOf('mtgtop8') !== -1) return 'mtgtop8';
     return 'manabrew';
   }
   var SITE = detectSite();
@@ -198,6 +216,37 @@
 
   // --- Local database loader -----------------------------------------------
 
+  // --- Network helper ------------------------------------------------------
+  // Cross-origin fetch can be blocked by a site's Content-Security-Policy
+  // (connect-src) — Scryfall sends a strict CSP that forbids
+  // raw.githubusercontent.com and mtgch.com from page-context fetch.
+  // GM_xmlhttpRequest is issued by the userscript manager itself and bypasses
+  // both CORS and page CSP; plain fetch remains the fallback for managers
+  // that do not provide it. Returns a Response-like object (the DB loader
+  // streams resp.body through DecompressionStream, the API paths call .json()).
+  function fetchVia(url) {
+    if (typeof GM_xmlhttpRequest !== 'function') return fetch(url);
+    return new Promise(function (resolve, reject) {
+      GM_xmlhttpRequest({
+        method: 'GET',
+        url: url,
+        responseType: 'arraybuffer',
+        timeout: 30000,
+        onload: function (r) {
+          if (!r || r.status < 200 || r.status >= 300) { reject(new Error('HTTP ' + (r && r.status))); return; }
+          var etag = null;
+          try {
+            var em = String(r.responseHeaders || '').match(/etag:\s*([^\r\n]+)/i);
+            if (em) etag = em[1].trim();
+          } catch (_) {}
+          resolve(new Response(r.response, { status: r.status, headers: etag ? { 'ETag': etag } : {} }));
+        },
+        onerror: function () { reject(new Error('network')); },
+        ontimeout: function () { reject(new Error('timeout')); },
+      });
+    });
+  }
+
   var zhDB = null;
   var dbLoadDone = false;  // true even on failure (unblocks lookup)
   var dbLoadPromise = null;
@@ -279,7 +328,7 @@
 
     dbLoadPromise = tryOpenIndexedDB().then(function (idb) {
       return loadDBFromIndexedDB(idb).then(function (cached) {
-        return fetch(DB_PATH).then(function (resp) {
+        return fetchVia(DB_PATH).then(function (resp) {
           if (!resp.ok) throw new Error('HTTP ' + resp.status);
           var etag = resp.headers.get('etag') || 'live';
           if (cached && cached.version === etag) {
@@ -309,7 +358,7 @@
     }).catch(function (err) {
       WARN('IndexedDB unavailable:', err.message || err);
       // Try to fetch DB without caching
-      return fetch(DB_PATH).then(function (resp) {
+      return fetchVia(DB_PATH).then(function (resp) {
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         var body = resp.body;
         var p = body ? Promise.resolve(body) : resp.arrayBuffer().then(function (b) { return new Blob([b]).stream(); });
@@ -363,7 +412,7 @@
     var set = String(identity.setCode || '').trim().toUpperCase();
     var num = String(identity.cardNumber || '').trim();
     if (!/^[A-Z0-9]{2,6}$/.test(set) || !/^[A-Za-z0-9]+$/.test(num)) return Promise.resolve(null);
-    return fetch('https://mtgch.com/api/v1/card/' + encodeURIComponent(set) + '/' + encodeURIComponent(num))
+    return fetchVia('https://mtgch.com/api/v1/card/' + encodeURIComponent(set) + '/' + encodeURIComponent(num))
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (j) {
         if (!j || !j.name || j.detail || j.message) return null;
@@ -392,7 +441,7 @@
   // endpoint 404s or mismatches.
   function fuzzyQueryMtgch(name) {
     var enc = encodeURIComponent(name);
-    return fetch('https://mtgch.com/api/v1/card-names/?q=' + enc + '&size=1')
+    return fetchVia('https://mtgch.com/api/v1/card-names/?q=' + enc + '&size=1')
       .then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
       .then(function (d) {
         // /card-names is a clean name lookup — its top hit is the card we want.
@@ -403,7 +452,7 @@
         // and scan every item for an exact English-name match. A non-matching
         // card's name/text/cost must never leak into the tooltip — this was
         // why hovering Reanimate showed 复生的九头蛇夫人 (wrong card).
-        return fetch('https://mtgch.com/api/v1/result?q=%22' + enc + '%22&unique=oracle_id&page_size=20')
+        return fetchVia('https://mtgch.com/api/v1/result?q=%22' + enc + '%22&unique=oracle_id&page_size=20')
           .then(function (r) { return r.ok ? r.json() : Promise.reject(r); })
           .then(function (sd) {
             var nameLower = name.toLowerCase().trim();
@@ -861,26 +910,24 @@
     var r = getAnchorRect(anchorEl);
     if (!r) return;
     var ps = { width: panel.offsetWidth || 300, height: panel.offsetHeight || 100 };
-    // MTGGoldfish: while the site's own card-image popover is visible, anchor
-    // to IT (not the name link) and place our panel next to it — never over
-    // the image. When the popover isn't up yet (first ~200ms of hover) or on
-    // other sites, fall back to the generic placement.
-    if (SITE === 'mtggoldfish') {
-      var pr = mtggoldfishPopoverRect();
-      if (pr) {
-        var beside = positionBesideCard(pr, ps, getViewport());
-        panel.style.left = beside.left + 'px';
-        panel.style.top = beside.top + 'px';
-        return;
-      }
+    // Sites with their own card-image hover panel (MTGGoldfish popover,
+    // Moxfield deck preview): anchor to IT and place our panel beside the
+    // image (right-first, never covering it). When the site popover isn't up
+    // yet or on other sites, fall back to the hovered element itself.
+    var pr = null;
+    if (SITE === 'mtggoldfish') pr = mtggoldfishPopoverRect();
+    else if (SITE === 'moxfield') pr = moxfieldPreviewRect();
+    if (pr) {
+      var beside = positionBesideCard(pr, ps, getViewport());
+      panel.style.left = beside.left + 'px';
+      panel.style.top = beside.top + 'px';
+      return;
     }
     var opts = {};
-    // MTGGoldfish: native card popover opens on the right of the name, and the
-    // user prefers the translation panel on the right — so default right of
-    // the link too. MTGDecks keeps the panel on the left of its small price
-    // popup.
-    if (SITE === 'mtggoldfish') opts.preferSide = 'right';
-    else if (SITE === 'mtgdecks') opts.preferSide = 'left';
+    // Default to the RIGHT of the hovered card (name or image); only
+    // MTGDecks keeps the panel on the left of its small price popup.
+    if (SITE === 'mtgdecks') opts.preferSide = 'left';
+    else if (!IS_MANABREW) opts.preferSide = 'right';
     var pos = calculatePanelPosition(r, ps, getViewport(), opts);
     panel.style.left = pos.left + 'px';
     panel.style.top = pos.top + 'px';
@@ -1012,17 +1059,21 @@
 
   // Strip set-code / foil / count annotations from an image alt (or
   // data-card-id) so the remaining string is the plain card name the local DB
-  // keys on. MTGGoldfish price-page images use alt="Spectral Sailor [FDN]".
-  // Card names never contain [brackets]; the only paren forms stripped are
-  // trailing markers like (F) / (FOIL) / (2) — real names such as
+  // keys on. MTGGoldfish price-page images use alt="Spectral Sailor [FDN]",
+  // Scryfall images alt="Spectral Sailor (Foundations #746)". Card names never
+  // contain [brackets]; the only paren forms stripped are trailing markers
+  // like (F) / (FOIL) / (2) / (Set #Num) — real names such as
   // "B.F.M. (Big Furry Monster)" keep their parentheses.
   function cleanCardName(raw) {
-    return String(raw || '')
+    var s = String(raw || '')
       .replace(/<[^>]+>/g, ' ')
-      .replace(/\[[^\]]*\]/g, ' ')
-      .replace(/\s*\((?:F|FOIL|NONFOIL|\d+)\)\s*$/i, '')
-      .replace(/\s+/g, ' ')
-      .trim();
+      .replace(/\[[^\]]*\]/g, ' ');
+    for (var i = 0; i < 4; i++) {
+      var t = s.replace(/\s*\((?:F|FOIL|NONFOIL|\d+|[^()]*#\d+)\)\s*$/i, '');
+      if (t === s) break;
+      s = t;
+    }
+    return s.replace(/\s+/g, ' ').trim();
   }
 
   function mtggoldfishHit(el) {
@@ -1117,13 +1168,145 @@
     return { el: anchor, name: name, identity: identity };
   }
 
+  // --- Scryfall ------------------------------------------------------------
+  // Card pages: <h1 class="card-text-title">Name {cost}</h1> and a big
+  // <img class="card …" alt="Name (Set #Num)"> from cards.scryfall.io. Search
+  // list rows are <a href="/cards/{set}/{num}/{slug}">Name</a>. The card page
+  // URL itself carries set + collector number → exact mtgch endpoint.
+  function scryfallIdentity() {
+    var m = String(location.pathname || '').match(/^\/card\/([a-z0-9]{2,6})\/(\d+)\//);
+    if (!m) return null;
+    return { setCode: m[1].toUpperCase(), cardNumber: m[2] };
+  }
+
+  function scryfallHit(el) {
+    var name = '';
+    var identity = null;
+    if (el.tagName === 'IMG' && /cards\.scryfall\.io/.test(el.src || '')) {
+      name = cleanCardName(el.getAttribute('alt'));
+      identity = scryfallIdentity();
+    } else if (el.tagName === 'A') {
+      var href = el.getAttribute('href') || '';
+      var cm = href.match(/\/cards\/([a-z0-9]{2,6})\/(\d+)\//);
+      name = (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 60);
+      if (cm && isValidCardName(name)) identity = { setCode: cm[1].toUpperCase(), cardNumber: cm[2] };
+    } else if (el.tagName === 'H1' && /card-text-title/.test(el.className || '')) {
+      // "Spectral Sailor\n{U}" — take the first line, drop the trailing cost.
+      name = String(el.textContent || '').split('\n')[0].trim();
+      identity = scryfallIdentity();
+    }
+    if (!isValidCardName(name)) return null;
+    return { el: el, name: name, identity: identity };
+  }
+
+  // --- EDHREC --------------------------------------------------------------
+  // Card name links <a href="/cards/{slug}">Name</a> everywhere; card pages
+  // show <h3>Name (Card)</h3> and <img src="card-images.edhrec.com" alt="Name">.
+  function edhrecHit(el) {
+    var name = '';
+    if (el.tagName === 'A' && /^\/cards\//.test(el.getAttribute('href') || '')) {
+      name = (el.textContent || '').trim().replace(/\s+/g, ' ');
+    } else if (el.tagName === 'IMG' && /card-images\.edhrec\.com/.test(el.src || '')) {
+      name = cleanCardName(el.getAttribute('alt'));
+    } else if ((el.tagName === 'H2' || el.tagName === 'H3' || el.tagName === 'H4') &&
+               /\(Card\)\s*$/.test((el.textContent || '').trim())) {
+      name = (el.textContent || '').trim().replace(/\s*\(Card\)\s*$/, '');
+    }
+    if (!isValidCardName(name)) return null;
+    return { el: el, name: name, identity: null };
+  }
+
+  // --- Moxfield ------------------------------------------------------------
+  // Decklist card names: <a class="table-deck-row-link" href="/cards/{id}-{slug}">
+  // Card images: <img src="assets.moxfield.net/cards/card-{id}-normal.webp"
+  // alt="Name"> — the alt on DFC piles is "Front"/"Back"/"Transform", which is
+  // not a card name and must be ignored.
+  function moxfieldHit(el) {
+    var name = '';
+    if (el.tagName === 'A' && (/table-deck-row-link/.test(el.className || '') || /\/cards\//.test(el.getAttribute('href') || ''))) {
+      name = (el.textContent || '').trim().replace(/\s+/g, ' ');
+    } else if (el.tagName === 'IMG' && /moxfield\.net\/cards/.test(el.src || '')) {
+      var alt = (el.getAttribute('alt') || '').trim();
+      if (/^(Front|Back|Transform)$/i.test(alt)) return null;
+      name = cleanCardName(alt);
+    }
+    if (!isValidCardName(name)) return null;
+    return { el: el, name: name, identity: null };
+  }
+
+  // Moxfield's right-side deck preview panel updates to the hovered card —
+  // anchor our panel to it so the tooltip sits beside the site's own image.
+  // Deck pages carry TWO .deckview-image-wrapper elements: the left sidebar's
+  // deck-cover thumbnail (inside aside.deckview-image-container) and the right
+  // column's hover preview (inside .col-lg-3) — only the latter tracks the
+  // hovered card, so prefer it.
+  function moxfieldPreviewRect() {
+    try {
+      var w = document.querySelector('.col-lg-3 .deckview-image-wrapper') || document.querySelector('.deckview-image-wrapper:not(aside .deckview-image-wrapper)');
+      if (!w) return null;
+      var r = w.getBoundingClientRect();
+      if (!r || r.width < 100 || r.height < 100) return null;
+      return r;
+    } catch (_) { return null; }
+  }
+
+  // --- MTGTop8 -------------------------------------------------------------
+  // Decklists render in two variants:
+  //   classic: <div class="deck_line hover_tr" onclick="AffCard('rev189',
+  //            'Ornithopter','','');">4 <span class="L14">Ornithopter</span></div>
+  //   visual:  <div onclick="AffCardV('rev189','Ornithopter','','');"><div
+  //            class="S14 visual_card_name"><a>Ornithopter</a></div></div>
+  // The AffCard/V id is "{set}{number}" (e.g. rev189 → REV/189; ambiguous for
+  // sets with digits like mh2247) — the mtgch exact endpoint's name gate
+  // rejects a wrong split and the lookup falls back to fuzzy search.
+  function mtgtop8Hit(el) {
+    var row = null;
+    var cur = el;
+    for (var d = 0; d < 6 && cur; d++) {
+      if (cur.nodeType !== 1) { cur = cur.parentElement; continue; }
+      var oc = cur.getAttribute ? (cur.getAttribute('onclick') || '') : '';
+      if (/deck_line/.test(cur.className || '') || /AffCardV?\(/.test(oc)) { row = cur; break; }
+      cur = cur.parentElement;
+    }
+    if (!row) return null;
+
+    var oc = row.getAttribute('onclick') || '';
+    var name = '';
+    // The onclick's second argument is the exact card name — most reliable.
+    var m = oc.match(/AffCardV?\(\s*'[^']*'\s*,\s*'([^']+)'/);
+    if (m) name = m[1].replace(/\+/g, ' ');
+    if (!isValidCardName(name)) {
+      var span = row.querySelector('.L14');
+      if (span) name = span.textContent.trim();
+    }
+    if (!isValidCardName(name)) {
+      var a = row.querySelector('.S14 a, a');
+      if (a) name = a.textContent.trim();
+    }
+    if (!isValidCardName(name)) return null;
+
+    var identity = null;
+    var im = oc.match(/AffCardV?\(\s*'([^']+)'/);
+    if (im) {
+      var idm = im[1].match(/^([A-Za-z]+?)(\d{1,4})$/);
+      if (idm) identity = { setCode: idm[1].toUpperCase(), cardNumber: idm[2] };
+    }
+    return { el: row, name: name, identity: identity };
+  }
+
   // Unified finder for the non-Manabrew sites. Walk up from the hover target
   // (≤12 levels) and stop at the first element that looks like a card.
   function findSiteCard(target) {
     var el = target;
     for (var d = 0; d < 12 && el && el !== document.body; d++) {
       if (el.nodeType !== 1) { el = el.parentElement; continue; }
-      var hit = SITE === 'mtggoldfish' ? mtggoldfishHit(el) : mtgdecksHit(el);
+      var hit = null;
+      if (SITE === 'mtggoldfish') hit = mtggoldfishHit(el);
+      else if (SITE === 'mtgdecks') hit = mtgdecksHit(el);
+      else if (SITE === 'scryfall') hit = scryfallHit(el);
+      else if (SITE === 'edhrec') hit = edhrecHit(el);
+      else if (SITE === 'moxfield') hit = moxfieldHit(el);
+      else if (SITE === 'mtgtop8') hit = mtgtop8Hit(el);
       if (hit) return hit;
       el = el.parentElement;
     }
@@ -2035,7 +2218,7 @@
     fetchAndLoadDB();
 
     updateMenuToggles();
-    LOG('v1.0.2 ready — ' + SITE + ': hover a card name or card image for the Simplified Chinese tooltip');
+    LOG('v1.1.0 ready — ' + SITE + ': hover a card name or card image for the Simplified Chinese tooltip');
   }
 
   if (document.readyState === 'loading') {

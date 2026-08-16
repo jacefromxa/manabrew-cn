@@ -1,18 +1,22 @@
 # manabrew-cn
 
-> 万智牌简体中文卡牌悬停翻译浮窗（Manabrew / MTGGoldfish / MTGDecks.net）
+> 万智牌简体中文卡牌悬停翻译浮窗（Manabrew / MTGGoldfish / MTGDecks.net / Scryfall / EDHREC / Moxfield / MTGTop8）
 
-在 [Manabrew](https://play.manabrew.app/)、[MTGGoldfish](https://www.mtggoldfish.com/) 与 [MTGDecks.net](https://mtgdecks.net/) 悬停万智牌卡牌时，自动在预览大图旁显示简体中文翻译浮窗——卡名、类别、规则文本，并带 **法术力费用**（右上角，与牌名同行）、**攻防**（右下角，`*/*` 文本形式，含忠诚度/防御）和 **彩色 MTG 符号图标**（`{W}`、`{T}`、`{2/W}` 等，正文规则文本同样使用彩色图标）。
+在 [Manabrew](https://play.manabrew.app/)、[MTGGoldfish](https://www.mtggoldfish.com/)、[MTGDecks.net](https://mtgdecks.net/)、[Scryfall](https://scryfall.com/)、[EDHREC](https://edhrec.com/)、[Moxfield](https://moxfield.com/) 与 [MTGTop8](https://www.mtgtop8.com/) 悬停万智牌卡牌时，自动在预览大图旁显示简体中文翻译浮窗——卡名、类别、规则文本，并带 **法术力费用**（右上角，与牌名同行）、**攻防**（右下角，`*/*` 文本形式，含忠诚度/防御）和 **彩色 MTG 符号图标**（`{W}`、`{T}`、`{2/W}` 等，正文规则文本同样使用彩色图标）。
 
 ## 支持站点
 
 | 站点 | 悬停方式 | 说明 |
 |------|---------|------|
 | [Manabrew](https://play.manabrew.app/) | 战场（`data-card-preview` portal）、手牌、堆叠（React fiber 状态）、牌组选择目录页（`/play/offline/constructed` 等）、牌组编辑器（`/deck-editor`） | 原有站点，行为不变 |
-| [MTGGoldfish](https://www.mtggoldfish.com/) | 悬停卡名链接（`data-card-id`）或**纯卡图**（Visual 牌组视图、文章卡图瓦片，取 `alt` 卡名） | 牌组页、价格页、Metagame 页等；卡名链接可解析出系列码 + 编号，未命中本地库时走 mtgch 精确端点；纯卡图的 UUID 图源不含系列码，走按名查询回退 |
-| [MTGDecks.net](https://mtgdecks.net/) | 悬停卡名链接（`image` 属性）、卡图瓦片或瓦片下方卡名 | 牌组（DECK VIEW / VISUAL VIEW）、Staples、价格页等；同样解析系列码 + 编号 |
+| [MTGGoldfish](https://www.mtggoldfish.com/) | 悬停卡名链接（`data-card-id`）或**纯卡图**（Visual 牌组视图、文章卡图瓦片、价格页，取 `alt` 卡名） | 卡名链接可解析出系列码 + 编号，未命中本地库时走 mtgch 精确端点；有原生卡图弹层，浮窗锚定弹层摆放在其右侧（空间不足换左侧/上下） |
+| [MTGDecks.net](https://mtgdecks.net/) | 悬停卡名链接（`image` 属性）、卡图瓦片或瓦片下方卡名 | 从卡图 URL 解析系列码 + 编号 |
+| [Scryfall](https://scryfall.com/) | 悬停卡页大图（`img.card`，alt 如 `Name (Set #Num)`）、卡名标题（`h1.card-text-title`）、列表链接 | 卡页 URL `/card/{set}/{num}/` 直接提供系列码 + 编号 |
+| [EDHREC](https://edhrec.com/) | 悬停卡名链接（`/cards/{slug}`）、卡图（`card-images.edhrec.com`）、卡页标题 | — |
+| [Moxfield](https://moxfield.com/) | 悬停牌组列表卡名（`a.table-deck-row-link`）或卡图（`assets.moxfield.net/cards`） | 有原生悬停预览面板，浮窗锚定预览并摆放在其左侧（右侧空间不足时） |
+| [MTGTop8](https://www.mtgtop8.com/) | 悬停牌组列表行（`.deck_line` / `AffCard(V)` 行） | 从 `AffCard(V)` 参数解析系列码 + 编号（带数字系列码如 MH2 靠 mtgch 名字门禁兜底） |
 
-三个站点共用同一套翻译数据库、mtgch API 回退、样式设置与固定浮窗开关。MTGGoldfish 上，当站点自带的卡图弹层出现时，浮窗会**锚定卡图弹层**并摆放在其**右侧**（右→左→下→上，空间不足自动换边），绝不遮挡卡图；弹层出现前短暂以卡名链接为锚。MTGDecks 的浮窗默认显示在卡牌左侧，避开站点自带的价格弹层。
+七个站点共用同一套翻译数据库、mtgch API 回退、样式设置与固定浮窗开关。浮窗默认显示在卡牌/卡图**右侧**（空间不足换左侧，有原生卡图弹层的站点锚定弹层，绝不遮挡卡图）；MTGDecks 保持左侧偏好。跨站请求走 `GM_xmlhttpRequest`（无则回退 `fetch`），不受站点 Content-Security-Policy（如 Scryfall 的严格 `connect-src`）限制。
 
 ## 安装
 
