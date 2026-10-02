@@ -12,12 +12,13 @@ const DATA_DIR = path.join(ROOT, "data");
 
 // --- Data sources (data/ is gitignored; see README for how to refresh) -----
 //   A. magic-cards-zhs-oracle.json — community MTGZH translations (names +
-//      full rules text + type) for ~34.5k oracle faces. This is the same source
+//      full rules text + type) for ~35k oracle faces. This is the same source
 //      mtgch.com serves; baking it in removes almost all runtime API lookups.
 //      Pulled from the HeliumOctahelide/magic-cards-zhs release tarball
 //      (zhs_oracle.json). Newlines are double-escaped (see unescapeZhsText).
-//   B. magic-cards-zhs-names.json — community zh names, widest name coverage
-//      (36,484). Kept as the base name map.
+//   B. magic-cards-zhs-names.json — community zh names, widest name coverage;
+//      the current snapshot also folds in translated names from the latest
+//      oracle release. Kept as the base name map.
 //   C. AtomicCards.json.gz — MTGJSON. Supplies mana cost / power / toughness /
 //      loyalty / defense, plus official WotC Chinese text as a fallback for
 //      the handful of faces oracle.json has no text for.

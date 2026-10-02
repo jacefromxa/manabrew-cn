@@ -3,7 +3,7 @@
 // @name:zh-CN   万智牌中文悬浮翻译助手
 // @name:en      MTG Chinese Hover Translation Assistant
 // @namespace    https://play.manabrew.app/
-// @version      1.4.1
+// @version      1.4.5
 // @description  在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8、CubeCobra 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。
 // @description:zh-CN 在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8、CubeCobra 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
 // @description:en Show Simplified Chinese card info on hover for Manabrew, MTGGoldfish, MTGDecks.net, Scryfall, EDHREC, Moxfield, MTGTop8 and CubeCobra — name, type, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
@@ -31,6 +31,9 @@
 // @grant        GM_registerMenuCommand
 // @grant        GM_xmlhttpRequest
 // @grant        GM_addStyle
+// @connect      raw.githubusercontent.com
+// @connect      mtgch.com
+// @connect      api.scryfall.com
 // ==/UserScript==
 
 (function () {
@@ -57,12 +60,14 @@
   } catch (_) {}
 
   var DATA_BASE = 'https://raw.githubusercontent.com/jacefromxa/manabrew-cn/main/dist';
+  var DB_MIRROR_URL = 'https://fastly.jsdelivr.net/gh/jacefromxa/manabrew-cn@main/dist/en2zhs.json.gz';
   var MANA_CSS_URL = 'https://cdn.jsdelivr.net/npm/mana-font@1.18.0/css/mana.css';
   // v0.9.2: bumped to mbrw-api3- — identity-aware exact-endpoint results should
-  // supersede any stale fuzzy name-only entries from before, so old caches are
-  // dropped once. (v0.9.1 bumped mbrw-api- → mbrw-api2- for the wrong-card-name
-  // leak fix.)
-  var API_CACHE_PREFIX = 'mbrw-api3-';
+  // supersede any stale fuzzy name-only entries from before. v1.4.5 bumps this
+  // again so name-only API results from before their expiry timestamp existed
+  // are discarded once. (v0.9.1 bumped mbrw-api- → mbrw-api2- for wrong-card
+  // name leakage.)
+  var API_CACHE_PREFIX = 'mbrw-api4-';
 
   // --- Site detection ------------------------------------------------------
   // The same hover-translation panel serves eight sites:
@@ -260,11 +265,11 @@
   // (connect-src) — Scryfall sends a strict CSP that forbids
   // raw.githubusercontent.com and mtgch.com from page-context fetch.
   // GM_xmlhttpRequest is issued by the userscript manager itself and bypasses
-  // both CORS and page CSP; plain fetch remains the fallback for managers
-  // that do not provide it. Returns a Response-like object (the DB loader
-  // streams resp.body through DecompressionStream, the API paths call .json()).
-  function fetchVia(url) {
-    if (typeof GM_xmlhttpRequest !== 'function') return fetch(url);
+  // both CORS and page CSP. Moxfield permits page-context requests to our data
+  // hosts, and Violentmonkey's privileged request times out there, so try fetch
+  // first on that site. Returns a Response-like object (DB reads body streams;
+  // API paths call .json()).
+  function requestViaGM(url) {
     return new Promise(function (resolve, reject) {
       GM_xmlhttpRequest({
         method: 'GET',
@@ -283,6 +288,21 @@
         onerror: function () { reject(new Error('network')); },
         ontimeout: function () { reject(new Error('timeout')); },
       });
+    });
+  }
+
+  function fetchVia(url) {
+    if (SITE === 'moxfield') {
+      return fetch(url).catch(function (fetchError) {
+        if (typeof GM_xmlhttpRequest !== 'function') throw fetchError;
+        WARN('Page fetch failed; falling back to GM_xmlhttpRequest:', fetchError.message || fetchError);
+        return requestViaGM(url);
+      });
+    }
+    if (typeof GM_xmlhttpRequest !== 'function') return fetch(url);
+    return requestViaGM(url).catch(function (gmError) {
+      WARN('GM_xmlhttpRequest failed; falling back to fetch:', gmError.message || gmError);
+      return fetch(url);
     });
   }
 
@@ -355,6 +375,21 @@
     }
   }
 
+  function fetchDBResponse(primaryUrl) {
+    var checkResponse = function (resp) {
+      if (!resp || !resp.ok) throw new Error('HTTP ' + (resp && resp.status));
+      return resp;
+    };
+    return fetchVia(primaryUrl).then(checkResponse).catch(function (primaryError) {
+      // The raw GitHub host can be closed by some Moxfield browser/network
+      // paths. The same repository snapshot is mirrored by Fastly jsDelivr,
+      // which serves CORS-enabled responses to the page-context fetch.
+      if (SITE !== 'moxfield' || primaryUrl !== DATA_BASE + '/en2zhs.json.gz') throw primaryError;
+      WARN('Primary DB fetch failed; trying CDN mirror:', primaryError.message || primaryError);
+      return fetch(DB_MIRROR_URL).then(checkResponse);
+    });
+  }
+
   function fetchAndLoadDB() {
     if (dbLoadPromise) return dbLoadPromise;
 
@@ -367,8 +402,7 @@
 
     dbLoadPromise = tryOpenIndexedDB().then(function (idb) {
       return loadDBFromIndexedDB(idb).then(function (cached) {
-        return fetchVia(DB_PATH).then(function (resp) {
-          if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        return fetchDBResponse(DB_PATH).then(function (resp) {
           var etag = resp.headers.get('etag') || 'live';
           if (cached && cached.version === etag) {
             zhDB = dbFromArray(cached.data);
@@ -397,8 +431,7 @@
     }).catch(function (err) {
       WARN('IndexedDB unavailable:', err.message || err);
       // Try to fetch DB without caching
-      return fetchVia(DB_PATH).then(function (resp) {
-        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      return fetchDBResponse(DB_PATH).then(function (resp) {
         var body = resp.body;
         var p = body ? Promise.resolve(body) : resp.arrayBuffer().then(function (b) { return new Blob([b]).stream(); });
         return p.then(function (stream) {
@@ -426,12 +459,39 @@
 
   var apiCache = new Map();
   var apiQueue = new Map();
+  var scryfallCache = new Map();
   var API_CACHE_MAX = 500;
+  var API_MISSING_TEXT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+  var SCRYFALL_MISS_TTL_MS = 60 * 60 * 1000;
+
+  function isExpiredApiResult(result, now) {
+    if (!result || result.t || result.o) return false;
+    var cachedAt = Number(result._cacheAt);
+    return !isFinite(cachedAt) || now - cachedAt >= API_MISSING_TEXT_TTL_MS;
+  }
+
+  function getCachedApiResult(key) {
+    var cached = apiCache.get(key);
+    if (cached && isExpiredApiResult(cached, Date.now())) {
+      apiCache.delete(key);
+      persistApiCache();
+      return null;
+    }
+    return cached || null;
+  }
 
   function loadApiCache() {
     try {
       var raw = localStorage.getItem(API_CACHE_PREFIX + 'cache');
-      if (raw) JSON.parse(raw).forEach(function (e) { apiCache.set(e[0], e[1]); });
+      if (raw) {
+        var now = Date.now();
+        var removedExpired = false;
+        JSON.parse(raw).forEach(function (e) {
+          if (isExpiredApiResult(e[1], now)) removedExpired = true;
+          else apiCache.set(e[0], e[1]);
+        });
+        if (removedExpired) persistApiCache();
+      }
     } catch (_) {}
   }
 
@@ -473,6 +533,72 @@
         };
       })
       .catch(function () { return null; });
+  }
+
+  // Scryfall is a second source for print-level stats. MTGGoldfish already
+  // gives us the set + collector number, and spoiler cards can appear here
+  // before they are present in the MTGJSON snapshot used to build our local
+  // translation DB. Only request it when the caller is missing a stat.
+  function fetchScryfallCard(identity, hoveredName) {
+    var set = String(identity && identity.setCode || '').trim().toUpperCase();
+    var num = String(identity && identity.cardNumber || '').trim();
+    if (!/^[A-Z0-9]{2,6}$/.test(set) || !/^[A-Za-z0-9]+$/.test(num)) return Promise.resolve(null);
+
+    var cacheKey = set + '/' + num;
+    var cached = scryfallCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.result);
+
+    return fetchVia('https://api.scryfall.com/cards/' + encodeURIComponent(set) + '/' + encodeURIComponent(num))
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        if (!j || !j.name || j.object === 'error') return null;
+        var hLower = String(hoveredName || '').toLowerCase().trim();
+        if (hLower && String(j.name).toLowerCase().trim() !== hLower) return null;
+
+        var face = Array.isArray(j.card_faces) ? j.card_faces[0] : null;
+        var pick = function (field) {
+          return j[field] != null ? j[field] : (face && face[field] != null ? face[field] : undefined);
+        };
+        var result = { n: j.name, _src: 'scryfall' };
+        var cost = pick('mana_cost');
+        var power = pick('power');
+        var toughness = pick('toughness');
+        var loyalty = pick('loyalty');
+        var defense = pick('defense');
+        if (cost) result.c = cost;
+        if (power != null) result.p = power;
+        if (toughness != null) result.q = toughness;
+        if (loyalty != null) result.l = loyalty;
+        if (defense != null) result.d = defense;
+        return result.c || result.p != null || result.q != null || result.l != null || result.d != null
+          ? result : null;
+      })
+      .catch(function () { return null; })
+      .then(function (result) {
+        scryfallCache.set(cacheKey, {
+          result: result,
+          // A miss is temporary for spoiler cards; don't permanently cache it.
+          expiresAt: Date.now() + (result ? 7 * 24 * 60 * 60 * 1000 : SCRYFALL_MISS_TTL_MS),
+        });
+        return result;
+      });
+  }
+
+  function supplementWithScryfall(result, cardName, identity) {
+    if (!identity || !identity.setCode || !identity.cardNumber || (result && result.c)) {
+      return Promise.resolve(result);
+    }
+    return fetchScryfallCard(identity, cardName).then(function (extra) {
+      if (!extra) return result;
+      var merged = Object.assign({}, result || {}, extra);
+      var key = String(cardName || '').trim().toLowerCase();
+      if (key) {
+        apiCache.set(key, merged);
+        if (apiCache.size > API_CACHE_MAX) apiCache.delete(apiCache.keys().next().value);
+        persistApiCache();
+      }
+      return merged;
+    });
   }
 
   // Fuzzy name search (2 requests: card-names + result). Kept as the fallback
@@ -547,6 +673,7 @@
     })
       .catch(function () { return { n: name, _src: 'miss' }; })
       .then(function (r) {
+        if (!r.t && !r.o) r._cacheAt = Date.now();
         apiCache.set(key, r);
         if (apiCache.size > API_CACHE_MAX) apiCache.delete(apiCache.keys().next().value);
         persistApiCache();
@@ -576,7 +703,7 @@
     }
 
     // 2. mtgch cache (fastest for cards not in the DB)
-    var cached = apiCache.get(key);
+    var cached = getCachedApiResult(key);
     if (cached) return Promise.resolve(cached);
 
     // 3. DB still loading — wait, but don't block forever
@@ -772,7 +899,7 @@
     }
 
     var srcEl = doc.createElement('div');
-    srcEl.textContent = card._src === 'local' ? '📦 本地' : card._src === 'api' ? '🌐 mtgch' : card._src === 'local+api' ? '📦+🌐' : '';
+    srcEl.textContent = card._src === 'local' ? '📦 本地' : card._src === 'api' ? '🌐 mtgch' : card._src === 'scryfall' ? '🌐 Scryfall' : card._src === 'local+api' ? '📦+🌐' : card._src === 'local+scryfall' ? '📦+🌐 Scryfall' : '';
     srcEl.style.cssText = 'color:var(--mbrw-source-color);font-size:var(--mbrw-source-size);margin-top:6px;text-align:right';
     panel.appendChild(srcEl);
   }
@@ -892,7 +1019,7 @@
   function upgradeCard(cardName, serial, identity) {
     var key = String(cardName || '').trim().toLowerCase();
     if (!key) return;
-    var cached = apiCache.get(key);
+    var cached = getCachedApiResult(key);
     var done = function (result) {
       if (!result) return;
       if (currentSerial !== serial || currentCardName !== cardName) return;
@@ -908,13 +1035,17 @@
       if (merged.d == null && result.d != null) { merged.d = result.d; changed = true; }
       if (!merged.n) { merged.n = result.n || cardName; changed = true; }
       if (!changed) return; // API had nothing this card was missing
-      merged._src = cur._src === 'local' ? 'local+api' : (result._src || cur._src || '');
-      LOG('Upgraded:', merged.n, '(missing fields from mtgch)');
+      if (cur._src === 'local' && result._src === 'scryfall') merged._src = 'local+scryfall';
+      else merged._src = cur._src === 'local' ? 'local+api' : (result._src || cur._src || '');
+      LOG('Upgraded:', merged.n, '(missing fields filled)');
       showPanel(currentAnchor, merged, cardName);
     };
-    if (cached) { done(cached); return; }
+    var enrich = function (result) {
+      supplementWithScryfall(result, cardName, identity).then(done, function () { done(result); });
+    };
+    if (cached) { enrich(cached); return; }
     setTimeout(function () {
-      queryMtgch(cardName, identity).then(done).catch(function () {});
+      queryMtgch(cardName, identity).then(enrich).catch(function () {});
     }, 60); // tiny stagger — the API is shared with the mtgch site
   }
 
@@ -2300,6 +2431,15 @@
     registerMenuCommand('⚙ 样式设置', openSettings, 'mbrw-cn-menu-style');
   }
 
+  // Test-only access to the pure network adapter; normal userscript runs do
+  // not set this flag and therefore expose nothing on window.
+  if (root.__MBRW_TESTING) root.__MBRW_TEST_HOOKS = {
+    fetchScryfallCard: fetchScryfallCard,
+    fetchDBResponse: fetchDBResponse,
+    getCachedApiResult: getCachedApiResult,
+    loadApiCache: loadApiCache,
+  };
+
   // --- Init ---------------------------------------------------------------
 
   function init() {
@@ -2332,7 +2472,7 @@
     fetchAndLoadDB();
 
     updateMenuToggles();
-    LOG('v1.4.1 ready — ' + SITE + ': hover a card name or card image for the Simplified Chinese tooltip');
+    LOG('v1.4.5 ready — ' + SITE + ': hover a card name or card image for the Simplified Chinese tooltip');
   }
 
   if (document.readyState === 'loading') {

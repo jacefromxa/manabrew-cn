@@ -1,13 +1,13 @@
 # HANDOFF — 万智牌中文悬浮翻译助手（manabrew-cn）
 
-> 交接文档。脚本当前版本 **v1.4.0**，支持 **8 个站点**。
-> 最后更新：本会话结束时。**⚠️ 有未完成事项：GitHub 推送（见文末）。**
+> 交接文档。脚本当前版本 **v1.4.5**，支持 **8 个站点**。
+> 最后更新：2026-10-02。数据库翻译源为 `data-2026-09-27`，MTGJSON 快照为 `2026-10-02`。
 
 ---
 
 ## 一、项目概况
 
-油猴用户脚本：悬停 MTG 卡牌（卡名链接或卡图）时显示简体中文翻译浮窗——卡名、类别、规则文本、费用（右上角）、攻防（*/*，含忠诚度/防御）、彩色 MTG 符号图标。本地数据库（~36,600 卡，35,000+ 完整规则文本）优先，mtgch.com API 精确端点回退，`GM_xmlhttpRequest` 跨站请求（突破严格 CSP 站点）。
+油猴用户脚本：悬停 MTG 卡牌（卡名链接或卡图）时显示简体中文翻译浮窗——卡名、类别、规则文本、费用（右上角）、攻防（*/*，含忠诚度/防御）、彩色 MTG 符号图标。本地数据库（37,082 卡，35,504 条规则文本）优先，mtgch.com API 精确端点回退；缺少规则译文的 API 缓存 7 天后重查。跨站请求通过 `GM_xmlhttpRequest` 或页面 fetch 完成。
 
 - **脚本名**：`万智牌中文悬浮翻译助手`（`@namespace` 仍为 `https://play.manabrew.app/`）
 - **仓库**：`github.com/jacefromxa/manabrew-cn`（分支 `main`）
@@ -28,7 +28,7 @@
 
 **定位规范（v1.4.0 统一）**：浮窗**先右后左**——默认锚点（卡牌/卡图/鼠标）右侧，空间不足换左侧；Moxfield 浮窗**跟随鼠标**；有原生卡图弹层的站点（MTGGoldfish / CubeCobra）锚定弹层摆放在卡图右侧，绝不遮挡卡图。
 
-## 三、本会话完成的改动（本地已提交，**未推送**）
+## 三、提交历史与当前版本
 
 | Commit | 版本 | 内容 |
 |---|---|---|
@@ -41,9 +41,9 @@
 | `2307984` | v1.3.0 | CubeCobra 支持（卡名行/卡图/原生弹层锚定） |
 | `d520447` | v1.4.0 | Moxfield 跟随鼠标（修复 NaN 定位）；先右后左统一（MTGDecks 同）；EDHREC 文章内嵌卡名 |
 | `58b8121` | v1.4.1 | 修复 Scryfall 浮窗全透明（GM_addStyle + CSSOM 兜底，CSP 拦截 style）；EDHREC 文章卡名部分触发（`/commanders/` 链接 + `.edhrecp__link` 包装器匹配） |
+| 本次更新 | v1.4.5 | 刷新数据库至 `data-2026-09-27` / MTGJSON `2026-10-02`；Moxfield 数据镜像回退；无规则译文 API 缓存 7 天过期 |
 
-**已发布到 Greasy Fork**：591633 已发布 v1.4.0；旧脚本 590313 已删除（redirect → 591633）。
-**⚠️ 待办**：v1.4.1 已提交但 Greasy Fork 尚未发布（会话结束时 greasyfork.org 网络持续断连）。发布步骤：登录 → 脚本 591633 → 「更新」→ 粘贴 `manabrew-cn.user.js` 全文 → changelog 填 v1.4.1 说明 → 发布。
+**Greasy Fork**：591633 当前仍发布 v1.4.0；旧脚本 590313 已删除（redirect → 591633）。本次只提交并推送 GitHub，不更新 Greasy Fork。
 
 ## 四、仓库结构
 
@@ -63,9 +63,10 @@ dist/en2zhs.json.gz          # 提交的数据库（GitHub Raw 提供）
 ## 五、发布流程（如何再次发布）
 
 1. **改代码** → `node --check manabrew-cn.user.js` 语法检查 → 按需 E2E（见下）。
-2. **提交**：`git add ... && git commit`（版本号在 `@version` + 启动 LOG 里同步）。
-3. **推 GitHub**：`git push origin main`（⚠️ 见文末阻塞）。
-4. **更新 Greasy Fork**：登录 greasyfork.org → 脚本 591633 → 「更新」→ 粘贴 `manabrew-cn.user.js` 全文 → 填 changelog → 发布。附加信息（描述）如需同步，编辑脚本附加信息（HTML 取自 `docs/greasyfork-description.html`）。
+2. **验证**：`node --test test/*.test.mjs`、`node --check manabrew-cn.user.js`、`git diff --check`。
+3. **提交**：`git add ... && git commit`（版本号在 `@version` + 启动 LOG 里同步）。
+4. **推 GitHub**：`git push origin main`。数据库由脚本在页面打开时从 GitHub Raw 拉取，更新 `dist/en2zhs.json.gz` 后会按 ETag 替换浏览器 IndexedDB 缓存。
+5. **更新 Greasy Fork（单独发布）**：登录 greasyfork.org → 脚本 591633 → 「更新」→ 粘贴 `manabrew-cn.user.js` 全文 → 填 changelog → 发布。附加信息（描述）如需同步，编辑脚本附加信息（HTML 取自 `docs/greasyfork-description.html`）。
 
 ## 六、测试要点（真实浏览器）
 
@@ -83,13 +84,6 @@ dist/en2zhs.json.gz          # 提交的数据库（GitHub Raw 提供）
 
 ---
 
-## ⚠️ 未完成：推送到 GitHub（需人工操作）
+## 八、发布通道
 
-**沙箱无法访问 `github.com`**（HTTPS 被环境拦截：`curl github.com` 返回 000；`api.github.com` / `codeload.github.com` 可达；SSH:22 可达但 agent 无密钥）。本地已就绪 8 个待推送提交（`bc70f31` … `d520447`），**必须由本机执行**：
-
-```bash
-cd /Users/Zhuanz/CCDeep/manabrew-cn
-git push origin main   # 本机 osxkeychain 已配置 GitHub 凭据
-```
-
-或者提供 GitHub PAT（repo 权限）后，可通过可达的 `api.github.com` 用 Git Database API 完成推送。
+GitHub Raw `main` 同时提供脚本与数据库。推送 `dist/en2zhs.json.gz` 后，脚本会在后续页面加载时按 ETag 更新浏览器 IndexedDB。Greasy Fork 591633 当前仍为 v1.4.0；本次提交只更新 GitHub，未发布 Greasy Fork。通过 Greasy Fork 安装的用户需在那里单独更新脚本，才能获得 1.4.5 的缓存过期修复。

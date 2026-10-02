@@ -27,16 +27,16 @@
 
 ## 数据来源
 
-本地数据库由四个数据源合并构建（~36,600 条，35,000+ 带完整规则文本）：
+本地数据库当前快照由四个数据源合并构建（37,082 条，35,504 条带规则文本；翻译源版本 `data-2026-09-27`）：
 
 | 来源 | 内容 |
 |------|------|
-| [HeliumOctahelide/magic-cards-zhs](https://github.com/HeliumOctahelide/magic-cards-zhs) `zhs_oracle.json`（发布版 tarball） | 社区简中卡名 + 规则文本 + 类别（~34.6k 面）——即 mtgch.com 所用的 MTGZH 数据，本地化后无需运行时请求 |
-| [HeliumOctahelide/magic-cards-zhs](https://github.com/HeliumOctahelide/magic-cards-zhs) `magic-cards-zhs-names.json` | 最广的社区简中卡名（36,484 条） |
-| MTGJSON `AtomicCards.json` | 法术力费用、攻防/忠诚度/防御，以及官方中文文本兜底 |
-| Scryfall `is:token`（`scripts/fetch-tokens.mjs` 抓取） | 衍生物 token 的攻防/费用（~600 名，构建时一次性；MTGJSON 不含 token） |
+| [HeliumOctahelide/magic-cards-zhs](https://github.com/HeliumOctahelide/magic-cards-zhs) `zhs_oracle.json`（发布版 tarball） | 社区简中卡名 + 规则文本 + 类别（34,949 个英文牌名）——即 mtgch.com 所用的 MTGZH 数据，本地化后无需运行时请求 |
+| 社区名称映射 + 当前 `zhs_oracle.json` 中的新译名 | 最广的社区简中卡名（36,987 条） |
+| MTGJSON `AtomicCards.json`（当前快照 `2026-10-02`） | 法术力费用、攻防/忠诚度/防御，以及官方中文文本兜底 |
+| Scryfall `is:token`（`scripts/fetch-tokens.mjs` 抓取） | 衍生物 token 的攻防/费用（634 个名称，构建时一次性；MTGJSON 不含 token） |
 
-少数未翻译卡牌（约 900 张）悬停时回退到 [mtgch.com API](https://mtgch.com/api/v1/docs)，结果自动缓存到本地。能拿到卡牌身份（系列码 + 编号）的路径——Manabrew 手牌、堆叠、牌组封面、预览大图，MTGGoldfish 的 `data-card-id` + `/price/` href，MTGDecks 的卡图 URL，Scryfall 卡页 URL `/card/{set}/{num}/`，MTGTop8 的 `AffCard(V)` 参数——未命中本地库时优先走 mtgch **精确端点** `/api/v1/card/{SET}/{CN}`：单次请求即返回全部字段，且按身份精确定位，零"按名模糊搜索"的错牌风险（带后缀编号等 404 场景自动回退到模糊搜索兜底）。此外，若某张**本地牌**的规则文本、费用或攻防任一字段缺失（如新系列中 MTGJSON 名称匹配不上的生物），也会在悬停时后台向 mtgch API 补齐缺失字段——本地已有的卡名/文本/类别不会被覆盖，每张牌仅首次请求一次、结果长期缓存。
+少数未翻译卡牌悬停时回退到 [mtgch.com API](https://mtgch.com/api/v1/docs)，结果自动缓存到本地。能拿到卡牌身份（系列码 + 编号）的路径——Manabrew 手牌、堆叠、牌组封面、预览大图，MTGGoldfish 的 `data-card-id` + `/price/` href，MTGDecks 的卡图 URL，Scryfall 卡页 URL `/card/{set}/{num}/`，MTGTop8 的 `AffCard(V)` 参数——未命中本地库时优先走 mtgch **精确端点** `/api/v1/card/{SET}/{CN}`：单次请求即返回全部字段，且按身份精确定位，零"按名模糊搜索"的错牌风险（带后缀编号等 404 场景自动回退到模糊搜索兜底）。此外，若某张**本地牌**的规则文本、费用或攻防任一字段缺失，也会在悬停时后台向 mtgch API 补齐缺失字段。本地已有的卡名/文本/类别不会被覆盖；缺少规则译文的 API 结果缓存 7 天后会重查，避免新补上的译文一直被旧缓存挡住。
 
 MTG 符号图标由 [mana-font](https://mana.andrewgioia.com/) 提供（CDN 加载，浏览器缓存）。
 
@@ -53,9 +53,9 @@ Tampermonkey/Violentmonkey 菜单 → **⚙ 样式设置** 打开设置弹窗，
 
 ```bash
 # 需要手动准备数据源（data/ 已被 gitignore）：
-#   data/magic-cards-zhs-oracle.json   # magic-cards-zhs 发布版 tarball 中的 zhs_oracle.json
-#   data/magic-cards-zhs-names.json    # 来自 magic-cards-zhs 仓库
-#   data/AtomicCards.json.gz           # 来自 MTGJSON
+#   data/magic-cards-zhs-oracle.json   # magic-cards-zhs 最新发布版 tarball 中的 zhs_oracle.json
+#   data/magic-cards-zhs-names.json    # 广覆盖名称映射，并并入当前 oracle 的新译名
+#   data/AtomicCards.json.gz           # 来自 MTGJSON；与翻译源分别更新
 #   data/scryfall-tokens.json          # node scripts/fetch-tokens.mjs（可选，token 攻防）
 node scripts/build-zhs-db.mjs
 # → dist/en2zhs.json.gz（提交到仓库，GitHub Raw 提供）
