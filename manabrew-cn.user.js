@@ -3,10 +3,10 @@
 // @name:zh-CN   万智牌中文悬浮翻译助手
 // @name:en      MTG Chinese Hover Translation Assistant
 // @namespace    https://play.manabrew.app/
-// @version      1.4.5
-// @description  在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8、CubeCobra 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。
-// @description:zh-CN 在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8、CubeCobra 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
-// @description:en Show Simplified Chinese card info on hover for Manabrew, MTGGoldfish, MTGDecks.net, Scryfall, EDHREC, Moxfield, MTGTop8 and CubeCobra — name, type, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
+// @version      1.5.0
+// @description  在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8、CubeCobra 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、风味文字、费用、攻防（含 MTG 符号图标）。
+// @description:zh-CN 在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8、CubeCobra 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、风味文字、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
+// @description:en Show Simplified Chinese card info on hover for Manabrew, MTGGoldfish, MTGDecks.net, Scryfall, EDHREC, Moxfield, MTGTop8 and CubeCobra — name, type, rules text, flavor text, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
 // @author       jacefromxa
 // @license      GPL-3.0
 // @match        https://play.manabrew.app/*
@@ -63,11 +63,12 @@
   var DB_MIRROR_URL = 'https://fastly.jsdelivr.net/gh/jacefromxa/manabrew-cn@main/dist/en2zhs.json.gz';
   var MANA_CSS_URL = 'https://cdn.jsdelivr.net/npm/mana-font@1.18.0/css/mana.css';
   // v0.9.2: bumped to mbrw-api3- — identity-aware exact-endpoint results should
-  // supersede any stale fuzzy name-only entries from before. v1.4.5 bumps this
+  // supersede any stale fuzzy name-only entries from before. v1.4.5 bumped this
   // again so name-only API results from before their expiry timestamp existed
-  // are discarded once. (v0.9.1 bumped mbrw-api- → mbrw-api2- for wrong-card
-  // name leakage.)
-  var API_CACHE_PREFIX = 'mbrw-api4-';
+  // are discarded once. v1.5.0 separates exact print caches so flavor text
+  // from one printing cannot leak into another. (v0.9.1 bumped mbrw-api- →
+  // mbrw-api2- for wrong-card name leakage.)
+  var API_CACHE_PREFIX = 'mbrw-api5-';
 
   // --- Site detection ------------------------------------------------------
   // The same hover-translation panel serves eight sites:
@@ -465,7 +466,10 @@
   var SCRYFALL_MISS_TTL_MS = 60 * 60 * 1000;
 
   function isExpiredApiResult(result, now) {
-    if (!result || result.t || result.o) return false;
+    if (!result) return false;
+    var missingRules = !result.t && !result.o;
+    var missingFlavor = result._flavorChecked && !result.f;
+    if (!missingRules && !missingFlavor) return false;
     var cachedAt = Number(result._cacheAt);
     return !isFinite(cachedAt) || now - cachedAt >= API_MISSING_TEXT_TTL_MS;
   }
@@ -502,6 +506,16 @@
     } catch (_) {}
   }
 
+  // Flavor text belongs to a printing, so exact lookups must not share a
+  // cache entry with another printing of the same card name. Name-only paths
+  // keep the short key for compatibility with the existing cache.
+  function apiCacheKey(name, identity) {
+    var base = String(name || '').trim().toLowerCase();
+    var set = String(identity && identity.setCode || '').trim().toUpperCase();
+    var num = String(identity && identity.cardNumber || '').trim();
+    return set && num ? base + '@' + set + '/' + num : base;
+  }
+
   // One exact request to the deterministic /api/v1/card/{SET}/{CN} endpoint —
   // the same "set + collector number" lookup the Scryfall-zhs plugin uses.
   // Returns null when the print isn't found (mtgch 404s on suffixed numbers
@@ -524,6 +538,8 @@
           n: j.atomic_translated_name || j.zhs_name || j.name,
           t: j.atomic_translated_text || j.zhs_text || undefined,
           y: j.atomic_translated_type || j.zhs_type_line || undefined,
+          fn: j.atomic_translated_flavor_name || j.zhs_flavor_name || undefined,
+          f: j.atomic_translated_flavor_text || j.zhs_flavor_text || undefined,
           c: j.mana_cost || undefined,
           p: j.power != null ? j.power : undefined,
           q: j.toughness != null ? j.toughness : undefined,
@@ -591,7 +607,7 @@
     return fetchScryfallCard(identity, cardName).then(function (extra) {
       if (!extra) return result;
       var merged = Object.assign({}, result || {}, extra);
-      var key = String(cardName || '').trim().toLowerCase();
+      var key = apiCacheKey(cardName, identity);
       if (key) {
         apiCache.set(key, merged);
         if (apiCache.size > API_CACHE_MAX) apiCache.delete(apiCache.keys().next().value);
@@ -638,6 +654,8 @@
               n: exact.atomic_translated_name || exact.zhs_name || zhName || name,
               t: exact.atomic_translated_text || exact.zhs_text || undefined,
               y: exact.atomic_translated_type || exact.zhs_type_line || undefined,
+              fn: exact.atomic_translated_flavor_name || exact.zhs_flavor_name || undefined,
+              f: exact.atomic_translated_flavor_text || exact.zhs_flavor_text || undefined,
               c: exact.mana_cost || undefined,
               p: exact.power || undefined,
               q: exact.toughness || undefined,
@@ -652,9 +670,10 @@
   // Public lookup used by the hover paths. `identity` ({setCode, cardNumber})
   // is present on the fiber paths (hand / stack / deck cover / preview) —
   // those get ONE exact request with zero wrong-card risk. Alt-only paths pass
-  // no identity and use the fuzzy search. Results cache under the card name.
+  // no identity and use the fuzzy search. Results cache by identity when one
+  // is available, otherwise under the card name.
   function queryMtgch(name, identity) {
-    var key = name.toLowerCase();
+    var key = apiCacheKey(name, identity);
     var pending = apiQueue.get(key);
     if (pending) return pending;
 
@@ -673,7 +692,8 @@
     })
       .catch(function () { return { n: name, _src: 'miss' }; })
       .then(function (r) {
-        if (!r.t && !r.o) r._cacheAt = Date.now();
+        r._flavorChecked = true;
+        if ((!r.t && !r.o) || !r.f) r._cacheAt = Date.now();
         apiCache.set(key, r);
         if (apiCache.size > API_CACHE_MAX) apiCache.delete(apiCache.keys().next().value);
         persistApiCache();
@@ -703,7 +723,7 @@
     }
 
     // 2. mtgch cache (fastest for cards not in the DB)
-    var cached = getCachedApiResult(key);
+    var cached = getCachedApiResult(apiCacheKey(cardName, identity));
     if (cached) return Promise.resolve(cached);
 
     // 3. DB still loading — wait, but don't block forever
@@ -721,13 +741,15 @@
     return queryMtgch(cardName.trim(), identity);
   }
 
-  // DB entry → display card. New v0.4.0 fields: t=text, y=type, c=mana cost,
-  // p/q=power/toughness, l=loyalty, d=defense, o=1 (intentionally textless —
-  // no runtime API upgrade needed).
+  // DB entry → display card. Fields: t=text, y=type, fn/f=flavor name/text,
+  // c=mana cost, p/q=power/toughness, l=loyalty, d=defense, o=1 (intentionally
+  // textless — no runtime API upgrade needed).
   function entryToCard(local, src) {
     var r = { n: local.n, _src: src };
     if (local.t) r.t = local.t;
     if (local.y) r.y = local.y;
+    if (local.fn) r.fn = local.fn;
+    if (local.f) r.f = local.f;
     if (local.c) r.c = local.c;
     if (local.p) r.p = local.p;
     if (local.q) r.q = local.q;
@@ -888,6 +910,19 @@
       panel.appendChild(textEl);
     }
 
+    if (card.fn || card.f) {
+      var flavorEl = doc.createElement('div');
+      flavorEl.className = 'mbrw-flavor';
+      var flavorHtml = '';
+      if (card.fn) {
+        flavorHtml += '<div class="mbrw-flavor-name">' + escapeHtml(card.fn) + '</div>';
+      }
+      if (card.f) flavorHtml += renderRulesText(card.f);
+      flavorEl.innerHTML = flavorHtml;
+      flavorEl.style.cssText = 'color:var(--mbrw-text-color);font-size:var(--mbrw-text-size);font-weight:400;line-height:1.5;margin-top:7px;font-style:italic;opacity:.86;white-space:pre-wrap';
+      panel.appendChild(flavorEl);
+    }
+
     // P/T footer — bottom-right corner (power/toughness, loyalty, or defense)
     var ptHtml = cardPowerToughness(card);
     if (ptHtml) {
@@ -999,13 +1034,14 @@
   // creature whose English name failed the MTGJSON faceName match is exactly
   // the case this catches — local data then gets its basic info filled in
   // from mtgch in the background.
-  function cardNeedsUpgrade(card) {
+  function cardNeedsUpgrade(card, identity) {
     if (!card) return false;
     var y = String(card.y || '');
     var isLand = /地|Land/.test(y);
     var isToken = /衍生/.test(y); // tokens have no mana cost by nature
     var hasStatLine = /生物|Creature|鹏洛客|Planeswalker/.test(y);
     if (!card.t && !card.o) return true; // missing rules text
+    if (identity && !card.f) return true; // exact API can supply translated flavor text
     if (!card.c && !isLand && !isToken) return true; // missing mana cost on a non-land, non-token
     if (hasStatLine && card.p == null && card.q == null && card.l == null && card.d == null) return true;
     return false;
@@ -1017,7 +1053,7 @@
   // local is ever overwritten. Results are cached, so each card costs the API
   // exactly once across sessions.
   function upgradeCard(cardName, serial, identity) {
-    var key = String(cardName || '').trim().toLowerCase();
+    var key = apiCacheKey(cardName, identity);
     if (!key) return;
     var cached = getCachedApiResult(key);
     var done = function (result) {
@@ -1028,6 +1064,8 @@
       var changed = false;
       if (!merged.t && result.t) { merged.t = result.t; changed = true; }
       if (!merged.y && result.y) { merged.y = result.y; changed = true; }
+      if (!merged.fn && result.fn) { merged.fn = result.fn; changed = true; }
+      if (!merged.f && result.f) { merged.f = result.f; changed = true; }
       if (!merged.c && result.c) { merged.c = result.c; changed = true; }
       if (merged.p == null && result.p != null) { merged.p = result.p; changed = true; }
       if (merged.q == null && result.q != null) { merged.q = result.q; changed = true; }
@@ -1626,7 +1664,7 @@
       if (!result || currentSerial !== serial) return;
       LOG('Found:', result.n, '(' + (result._src || '?') + ')');
       showPanel(anchorEl, result, cardName);
-      if (cardNeedsUpgrade(result)) upgradeCard(cardName, serial, identity);
+      if (cardNeedsUpgrade(result, identity)) upgradeCard(cardName, serial, identity);
     }).catch(function (err) {
       WARN('Lookup failed:', err);
     });
@@ -2025,7 +2063,7 @@
       if (!result || currentSerial !== serial) return;
       LOG('Found:', result.n, '(' + (result._src || '?') + ')', '[fiber]');
       showPanel(rect, result, cardName);
-      if (cardNeedsUpgrade(result)) upgradeCard(cardName, serial, identity);
+      if (cardNeedsUpgrade(result, identity)) upgradeCard(cardName, serial, identity);
     }).catch(function (err) {
       WARN('Fiber lookup failed:', err);
     });
@@ -2434,6 +2472,10 @@
   // Test-only access to the pure network adapter; normal userscript runs do
   // not set this flag and therefore expose nothing on window.
   if (root.__MBRW_TESTING) root.__MBRW_TEST_HOOKS = {
+    fetchExactCard: fetchExactCard,
+    entryToCard: entryToCard,
+    ensurePanel: ensurePanel,
+    renderPanel: renderPanel,
     fetchScryfallCard: fetchScryfallCard,
     fetchDBResponse: fetchDBResponse,
     getCachedApiResult: getCachedApiResult,
@@ -2472,7 +2514,7 @@
     fetchAndLoadDB();
 
     updateMenuToggles();
-    LOG('v1.4.5 ready — ' + SITE + ': hover a card name or card image for the Simplified Chinese tooltip');
+    LOG('v1.5.0 ready — ' + SITE + ': hover a card name or card image for the Simplified Chinese tooltip');
   }
 
   if (document.readyState === 'loading') {

@@ -2,7 +2,7 @@
 
 > 万智牌简体中文卡牌悬停翻译浮窗，支持 Manabrew / MTGGoldfish / MTGDecks.net / Scryfall / EDHREC / Moxfield / MTGTop8 / CubeCobra 八个站点
 
-在 [Manabrew](https://play.manabrew.app/)、[MTGGoldfish](https://www.mtggoldfish.com/)、[MTGDecks.net](https://mtgdecks.net/)、[Scryfall](https://scryfall.com/)、[EDHREC](https://edhrec.com/)、[Moxfield](https://moxfield.com/)、[MTGTop8](https://www.mtgtop8.com/) 与 [CubeCobra](https://cubecobra.com/) 悬停万智牌卡牌时，自动在预览大图旁显示简体中文翻译浮窗——卡名、类别、规则文本，并带 **法术力费用**（右上角，与牌名同行）、**攻防**（右下角，`*/*` 文本形式，含忠诚度/防御）和 **彩色 MTG 符号图标**（`{W}`、`{T}`、`{2/W}` 等，正文规则文本同样使用彩色图标）。
+在 [Manabrew](https://play.manabrew.app/)、[MTGGoldfish](https://www.mtggoldfish.com/)、[MTGDecks.net](https://mtgdecks.net/)、[Scryfall](https://scryfall.com/)、[EDHREC](https://edhrec.com/)、[Moxfield](https://moxfield.com/)、[MTGTop8](https://www.mtgtop8.com/) 与 [CubeCobra](https://cubecobra.com/) 悬停万智牌卡牌时，自动在预览大图旁显示简体中文翻译浮窗——卡名、类别、规则文本、风味文字，并带 **法术力费用**（右上角，与牌名同行）、**攻防**（右下角，`*/*` 文本形式，含忠诚度/防御）和 **彩色 MTG 符号图标**（`{W}`、`{T}`、`{2/W}` 等，正文与风味文字同样使用彩色图标）。
 
 ## 支持站点
 
@@ -36,7 +36,7 @@
 | MTGJSON `AtomicCards.json`（当前快照 `2026-10-02`） | 法术力费用、攻防/忠诚度/防御，以及官方中文文本兜底 |
 | Scryfall `is:token`（`scripts/fetch-tokens.mjs` 抓取） | 衍生物 token 的攻防/费用（634 个名称，构建时一次性；MTGJSON 不含 token） |
 
-少数未翻译卡牌悬停时回退到 [mtgch.com API](https://mtgch.com/api/v1/docs)，结果自动缓存到本地。能拿到卡牌身份（系列码 + 编号）的路径——Manabrew 手牌、堆叠、牌组封面、预览大图，MTGGoldfish 的 `data-card-id` + `/price/` href，MTGDecks 的卡图 URL，Scryfall 卡页 URL `/card/{set}/{num}/`，MTGTop8 的 `AffCard(V)` 参数——未命中本地库时优先走 mtgch **精确端点** `/api/v1/card/{SET}/{CN}`：单次请求即返回全部字段，且按身份精确定位，零"按名模糊搜索"的错牌风险（带后缀编号等 404 场景自动回退到模糊搜索兜底）。此外，若某张**本地牌**的规则文本、费用或攻防任一字段缺失，也会在悬停时后台向 mtgch API 补齐缺失字段。本地已有的卡名/文本/类别不会被覆盖；缺少规则译文的 API 结果缓存 7 天后会重查，避免新补上的译文一直被旧缓存挡住。
+少数未翻译卡牌悬停时回退到 [mtgch.com API](https://mtgch.com/api/v1/docs)，结果自动缓存到本地。能拿到卡牌身份（系列码 + 编号）的路径——Manabrew 手牌、堆叠、牌组封面、预览大图，MTGGoldfish 的 `data-card-id` + `/price/` href，MTGDecks 的卡图 URL，Scryfall 卡页 URL `/card/{set}/{num}/`，MTGTop8 的 `AffCard(V)` 参数——未命中本地库时优先走 mtgch **精确端点** `/api/v1/card/{SET}/{CN}`：单次请求即返回全部字段，且按身份精确定位，零"按名模糊搜索"的错牌风险（带后缀编号等 404 场景自动回退到模糊搜索兜底）。该接口的中文风味名和风味文字也会在浮窗中显示；本地数据库命中但缺少风味文字时，同样会按印刷版本在后台补齐。本地已有的卡名/文本/类别不会被覆盖；缺少规则或风味译文的 API 结果缓存 7 天后会重查，避免新补上的译文一直被旧缓存挡住。精确查询的缓存键包含系列码和编号，避免同名重印牌的风味文字串牌。
 
 MTG 符号图标由 [mana-font](https://mana.andrewgioia.com/) 提供（CDN 加载，浏览器缓存）。
 
@@ -45,7 +45,7 @@ MTG 符号图标由 [mana-font](https://mana.andrewgioia.com/) 提供（CDN 加�
 Tampermonkey/Violentmonkey 菜单 → **⚙ 样式设置** 打开设置弹窗，支持：
 
 - **底色 / 边框**：各自独立的颜色（取色器）+ 透明度滑块
-- **每个文字区块**：卡名（含同行的法术力费用）、英文卡名、类别行、规则文本、攻防、来源脚注 —— 各自的颜色 + 字号（**上限 30px**），弹窗顶部有实时预览，与浮窗共用同一组样式变量，改动即时生效
+- **文字区块样式**：卡名（含同行的法术力费用）、英文卡名、类别行、规则文本、攻防、来源脚注各自有颜色 + 字号（**上限 30px**）；风味文字沿用规则文本的颜色和字号并以斜体显示，弹窗顶部有实时预览，与浮窗共用同一组样式变量，改动即时生效
 
 面板**跟随/固定**模式由脚本菜单里的唯一开关「**固定浮窗**」控制（勾选 = 固定、可拖动）。固定模式下浮窗**永不自动隐藏**：鼠标移开后仍保持上次悬停的卡牌翻译，直到下一个悬停动作刷新内容；只有取消固定模式才关闭。设置弹窗只负责样式，不再放第二套模式按钮，避免重复开关。
 

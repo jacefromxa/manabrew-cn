@@ -6,7 +6,7 @@ import vm from "node:vm";
 
 const SCRIPT_PATH = fileURLToPath(new URL("../manabrew-cn.user.js", import.meta.url));
 const SCRIPT = readFileSync(SCRIPT_PATH, "utf8");
-const CACHE_KEY = "mbrw-api4-cache";
+const CACHE_KEY = "mbrw-api5-cache";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function makeElement(tagName = "div") {
@@ -80,6 +80,8 @@ test("name-only API cache entries expire after seven days while translations sta
       ["new spoiler", { n: "新预览牌", _src: "api", _cacheAt: now - 8 * DAY_MS }],
       ["old untranslated", { n: "旧未译牌", _src: "api" }],
       ["translated card", { n: "已译牌", t: "规则文本", _src: "api", _cacheAt: now - 60 * DAY_MS }],
+      ["flavor missing", { n: "缺风味牌", t: "规则文本", _src: "api", _flavorChecked: true, _cacheAt: now - 8 * DAY_MS }],
+      ["flavor cached", { n: "有风味牌", t: "规则文本", f: "风味文字", _src: "api", _flavorChecked: true, _cacheAt: now - 60 * DAY_MS }],
     ])],
   ], now);
 
@@ -91,8 +93,10 @@ test("name-only API cache entries expire after seven days while translations sta
   assert.equal(hooks.getCachedApiResult("new spoiler"), null);
   assert.equal(hooks.getCachedApiResult("old untranslated"), null);
   assert.equal(hooks.getCachedApiResult("translated card").t, "规则文本");
+  assert.equal(hooks.getCachedApiResult("flavor missing"), null);
+  assert.equal(hooks.getCachedApiResult("flavor cached").f, "风味文字");
   assert.deepEqual(
     JSON.parse(store.get(CACHE_KEY)).map(([name]) => name),
-    ["translated card"],
+    ["translated card", "flavor cached"],
   );
 });

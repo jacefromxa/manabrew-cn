@@ -1,13 +1,13 @@
 # HANDOFF — 万智牌中文悬浮翻译助手（manabrew-cn）
 
-> 交接文档。脚本当前版本 **v1.4.5**，支持 **8 个站点**。
-> 最后更新：2026-10-02。数据库翻译源为 `data-2026-09-27`，MTGJSON 快照为 `2026-10-02`。
+> 交接文档。脚本当前版本 **v1.5.0**，支持 **8 个站点**。
+> 最后更新：2026-10-03。数据库翻译源为 `data-2026-09-27`，MTGJSON 快照为 `2026-10-02`。
 
 ---
 
 ## 一、项目概况
 
-油猴用户脚本：悬停 MTG 卡牌（卡名链接或卡图）时显示简体中文翻译浮窗——卡名、类别、规则文本、费用（右上角）、攻防（*/*，含忠诚度/防御）、彩色 MTG 符号图标。本地数据库（37,082 卡，35,504 条规则文本）优先，mtgch.com API 精确端点回退；缺少规则译文的 API 缓存 7 天后重查。跨站请求通过 `GM_xmlhttpRequest` 或页面 fetch 完成。
+油猴用户脚本：悬停 MTG 卡牌（卡名链接或卡图）时显示简体中文翻译浮窗——卡名、类别、规则文本、风味文字、费用（右上角）、攻防（*/*，含忠诚度/防御）、彩色 MTG 符号图标。本地数据库（37,082 卡，35,504 条规则文本）优先，mtgch.com API 精确端点回退；缺少规则或风味译文的 API 缓存 7 天后重查。跨站请求通过 `GM_xmlhttpRequest` 或页面 fetch 完成。
 
 - **脚本名**：`万智牌中文悬浮翻译助手`（`@namespace` 仍为 `https://play.manabrew.app/`）
 - **仓库**：`github.com/jacefromxa/manabrew-cn`（分支 `main`）
@@ -41,7 +41,7 @@
 | `2307984` | v1.3.0 | CubeCobra 支持（卡名行/卡图/原生弹层锚定） |
 | `d520447` | v1.4.0 | Moxfield 跟随鼠标（修复 NaN 定位）；先右后左统一（MTGDecks 同）；EDHREC 文章内嵌卡名 |
 | `58b8121` | v1.4.1 | 修复 Scryfall 浮窗全透明（GM_addStyle + CSSOM 兜底，CSP 拦截 style）；EDHREC 文章卡名部分触发（`/commanders/` 链接 + `.edhrecp__link` 包装器匹配） |
-| 本次更新 | v1.4.5 | 刷新数据库至 `data-2026-09-27` / MTGJSON `2026-10-02`；Moxfield 数据镜像回退；无规则译文 API 缓存 7 天过期 |
+| 本次更新 | v1.5.0 | 接入 mtgch 中文风味名/风味文字；精确 API 缓存按系列码+编号区分印刷版本；浮窗显示风味文字 |
 
 **Greasy Fork**：591633 当前仍发布 v1.4.0；旧脚本 590313 已删除（redirect → 591633）。本次只提交并推送 GitHub，不更新 Greasy Fork。
 
@@ -86,4 +86,4 @@ dist/en2zhs.json.gz          # 提交的数据库（GitHub Raw 提供）
 
 ## 八、发布通道
 
-GitHub Raw `main` 同时提供脚本与数据库。推送 `dist/en2zhs.json.gz` 后，脚本会在后续页面加载时按 ETag 更新浏览器 IndexedDB。Greasy Fork 591633 当前仍为 v1.4.0；本次提交只更新 GitHub，未发布 Greasy Fork。通过 Greasy Fork 安装的用户需在那里单独更新脚本，才能获得 1.4.5 的缓存过期修复。
+GitHub Raw `main` 同时提供脚本与数据库。推送 `dist/en2zhs.json.gz` 后，脚本会在后续页面加载时按 ETag 更新浏览器 IndexedDB。Greasy Fork 591633 当前仍为 v1.4.0；本次提交只更新 GitHub，未发布 Greasy Fork。通过 Greasy Fork 安装的用户需在那里单独更新脚本，才能获得 1.5.0 的风味文字支持。

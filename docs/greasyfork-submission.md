@@ -11,8 +11,8 @@
 |------|-----|
 | **名称 (Name)** | `万智牌中文悬浮翻译助手` |
 | **命名空间 (Namespace)** | `https://play.manabrew.app/` |
-| **简介 (Description / Synopsis)** | 在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8、CubeCobra 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、费用、攻防（含 MTG 符号图标）。 |
-| **版本 (Version)** | `1.4.1` |
+| **简介 (Description / Synopsis)** | 在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8、CubeCobra 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、风味文字、费用、攻防（含 MTG 符号图标）。 |
+| **版本 (Version)** | `1.5.0` |
 | **作者 (Author)** | `jacefromxa` |
 | **许可 (License)** | `GPL-3.0` |
 | **适用站点 (Match)** | `https://play.manabrew.app/*`、`https://www.mtggoldfish.com/*`、`https://mtggoldfish.com/*`、`https://www.mtgdecks.net/*`、`https://mtgdecks.net/*`、`https://scryfall.com/*`、`https://edhrec.com/*`、`https://moxfield.com/*`、`https://www.mtgtop8.com/*`、`https://mtgtop8.com/*`、`https://cubecobra.com/*` |
@@ -31,15 +31,15 @@
 
 ### 这是什么
 
-一个为开源万智牌（MTG）在线客户端 [Manabrew](https://play.manabrew.app/)、卡价/牌组站 [MTGGoldfish](https://www.mtggoldfish.com/) 与 [MTGDecks.net](https://mtgdecks.net/)、卡查 [Scryfall](https://scryfall.com/)、指挥官统计 [EDHREC](https://edhrec.com/)、牌组构建 [Moxfield](https://moxfield.com/) 与赛事牌组库 [MTGTop8](https://www.mtgtop8.com/) 与 [CubeCobra](https://cubecobra.com/) 开发的用户脚本。悬停任意卡牌（卡名链接或卡图），自动在旁边显示**简体中文翻译浮窗**——中文卡名、英文原名、类别行、规则文本、法术力费用与攻防，正文与费用中的 MTG 符号（`{W}`、`{T}`、`{2/W}` 等）以彩色图标渲染，观感接近真实卡牌。
+一个为开源万智牌（MTG）在线客户端 [Manabrew](https://play.manabrew.app/)、卡价/牌组站 [MTGGoldfish](https://www.mtggoldfish.com/) 与 [MTGDecks.net](https://mtgdecks.net/)、卡查 [Scryfall](https://scryfall.com/)、指挥官统计 [EDHREC](https://edhrec.com/)、牌组构建 [Moxfield](https://moxfield.com/) 与赛事牌组库 [MTGTop8](https://www.mtgtop8.com/) 与 [CubeCobra](https://cubecobra.com/) 开发的用户脚本。悬停任意卡牌（卡名链接或卡图），自动在旁边显示**简体中文翻译浮窗**——中文卡名、英文原名、类别行、规则文本、风味文字、法术力费用与攻防，正文与风味文字中的 MTG 符号（`{W}`、`{T}`、`{2/W}` 等）以彩色图标渲染，观感接近真实卡牌。
 
 ### 功能特性
 
 - **覆盖全部卡牌区域**：Manabrew 战场（预览大图）、手牌、堆叠、牌组选择目录、牌组编辑器，双面牌自动显示当前面的翻译；MTGGoldfish / MTGDecks.net / Scryfall / EDHREC / Moxfield / MTGTop8 的牌组页 / 价格页 / 卡查页 / 统计页等悬停卡名或卡图即可。
-- **本地数据库优先，零网络延迟**：内置约 36,600 张卡牌的简中数据（35,000+ 含完整规则文本），首次加载后存入浏览器缓存，日常使用不产生任何请求。
+- **本地数据库优先**：内置约 36,600 张卡牌的简中数据（35,000+ 含完整规则文本），首次加载后存入浏览器缓存；已命中本地的卡牌只在需要按印刷版本补充风味文字时查询 API。
 - **智能 API 回退**：少数未翻译卡牌自动查询 [mtgch.com 中文卡查](https://mtgch.com/api/v1/docs)。能拿到卡牌身份（系列码 + 编号）的路径——Manabrew 手牌/堆叠/封面/预览、MTGGoldfish 的 `data-card-id` + `/price/` href、MTGDecks 的卡图 URL、Scryfall 卡页 URL `/card/{set}/{num}/`、MTGTop8 的 `AffCard(V)` 参数——走**精确端点**单次请求，不会因同名卡模糊匹配而显示错牌；每张牌结果长期缓存，只请求一次。
-- **本地卡缺失字段自动补齐**：本地数据缺规则文本 / 费用 / 攻防时，后台向 API 补齐，已有的本地翻译不被覆盖。
-- **完全可定制的样式**：底色、边框、每个文字区块（卡名 / 英文卡名 / 类别行 / 规则文本 / 攻防 / 来源脚注）各自的颜色与字号（上限 30px），实时预览。
+- **本地卡缺失字段自动补齐**：本地数据缺规则文本 / 风味文字 / 费用 / 攻防时，后台按系列码和编号向 API 补齐，已有的本地翻译不被覆盖；精确缓存按印刷版本区分。
+- **完全可定制的样式**：底色、边框、每个文字区块（卡名 / 英文卡名 / 类别行 / 规则文本 / 风味文字 / 攻防 / 来源脚注）各自的颜色与字号（上限 30px），实时预览。
 - **面板跟随 / 固定**：脚本菜单唯一开关切换，固定模式可拖动，且永不自动隐藏——鼠标移开后保持上次悬停的卡牌翻译，直到下一个悬停动作刷新内容。
 - **站点自带弹层不重叠**：MTGGoldfish / Moxfield 有原生卡图悬停弹层（分别为 popover 与右侧预览面板），翻译浮窗会锚定该卡图并摆放在其**右侧**（空间不足换左侧/上下，自动换边），绝不遮挡卡图；MTGDecks.net 上浮窗默认显示在卡牌左侧，避开价格弹层。
 - **纯卡图同样支持悬停**：MTGGoldfish 只显示卡图而无卡名文本的地方（牌组 Visual 视图、文章卡图瓦片等）、Scryfall / EDHREC / Moxfield 的卡图，悬停即可显示中文翻译（从 `alt` 取卡名，自动剥离 `[SET]`、`(Set #Num)` 等注解）。
@@ -58,7 +58,8 @@
 Tampermonkey / Violentmonkey 菜单 → **⚙ 样式设置**：
 
 - 底色 / 边框：各自颜色 + 透明度滑块
-- 六个文字区块（卡名含同行的费用、英文卡名、类别行、规则文本、攻防、来源脚注）：各自颜色 + 字号（8–30px）
+- 风味文字随规则文本使用同一组颜色和字号，并以斜体显示
+- 六个可调文字区块（卡名含同行的费用、英文卡名、类别行、规则文本、攻防、来源脚注）：各自颜色 + 字号（8–30px）；风味文字沿用规则文本的颜色和字号
 - 弹窗顶部实时预览，与浮窗共用同一组样式变量，改动即时生效
 
 面板「跟随 / 固定」由脚本菜单里的唯一开关**固定浮窗**控制。
@@ -66,7 +67,7 @@ Tampermonkey / Violentmonkey 菜单 → **⚙ 样式设置**：
 ### 数据来源与隐私
 
 - 本地数据库由社区翻译项目 [magic-cards-zhs](https://github.com/HeliumOctahelide/magic-cards-zhs)、[MTGJSON](https://mtgjson.com/) 与 Scryfall token 数据构建，与 mtgch.com 同源，中文准确度高。
-- 运行时仅在本地库未命中时访问 mtgch.com API（约 900 张边缘卡牌，命中后缓存）。
+- 运行时仅在本地库未命中或需要补充印刷版本风味文字时访问 mtgch.com API，结果按卡名或系列码 + 编号缓存。
 - **脚本不收集任何个人信息**；设置、缓存均只保存在你的浏览器本地。
 
 ### 兼容性
@@ -83,6 +84,7 @@ Tampermonkey / Violentmonkey 菜单 → **⚙ 样式设置**：
 
 ### 更新日志
 
+- **v1.5.0** — 接入 mtgch 中文风味名 / 风味文字；本地卡按系列码 + 编号后台补齐；精确 API 缓存按印刷版本区分，避免同名重印牌串入错误风味文字；浮窗在规则文本下方以斜体显示风味文字。
 - **v1.4.1** — 修复两个问题：① **Scryfall 浮窗全透明**——其 CSP（style-src 无 unsafe-inline）拦截了普通 `<style>` 元素，导致 CSS 变量未定义、面板背景失效；改优先用 `GM_addStyle`（绕过页面 CSP）注入样式，并用 CSSOM 内联核心颜色兜底（实测面板恢复深色背景/浅色文字/边框）。② **EDHREC 文章卡名只能部分触发**——部分文章（如 Y'shtola 报道）的卡名链接是 `/commanders/{slug}` 而非 `/cards/{slug}`；改为匹配 `.edhrecp__link` 包装器内的任意相对路径卡名链接（含 commander），并支持悬停包装器本身；排除包装器内的外链价格锚点。实测 commander 链接与三种文章卡名形态全部触发。
 - **v1.4.0** — 勘误与补全：① Moxfield 浮窗改为**跟随鼠标**（优先鼠标右侧、空间不足换左侧，修复了鼠标锚点缺 right/bottom 导致定位 NaN 的问题）；② 定位规范统一为**先右后左**，MTGDecks 同样遵从（不再靠左）；③ EDHREC **文章内嵌卡名**支持（`Card_name__*` 卡块与 `fake-link` 移动端副本）；④ 移除 Moxfield 原生预览面板锚定。
 - **v1.3.0** — 新增 **CubeCobra**（cubecobra.com）支持：牌组/列表卡名行（`.list-group-card`）、卡图（`assets.cubecobra.com/cardimages`，alt 取卡名）、搜索页卡图；锚定其原生悬停弹层（`#autocardPopup`）摆放在卡图右侧（空间不足换左侧/上下），绝不遮挡卡图。
