@@ -9,9 +9,9 @@
 | 站点 | 悬停方式 | 说明 |
 |------|---------|------|
 | [Manabrew](https://play.manabrew.app/) | 战场（`data-card-preview` portal）、手牌、堆叠（React fiber 状态）、牌组选择目录页（`/play/offline/constructed` 等）、牌组编辑器（`/deck-editor`） | 原有站点，行为不变 |
-| [MTGGoldfish](https://www.mtggoldfish.com/) | 悬停卡名链接（`data-card-id`）或**纯卡图**（Visual 牌组视图、文章卡图瓦片、价格页，取 `alt` 卡名） | 卡名链接可解析出系列码 + 编号，未命中本地库时走 mtgch 精确端点；有原生卡图弹层，浮窗锚定弹层摆放在其右侧（空间不足换左侧/上下） |
+| [MTGGoldfish](https://www.mtggoldfish.com/) | 悬停卡名链接（`data-card-id`）或**纯卡图**（Visual 牌组视图、文章卡图瓦片、价格页，取 `alt` 卡名） | 从 `data-card-id`、外层 `/price/` 链接或 `data-card-url` 提取系列码 + 编号，未命中本地库或缺少风味文字时走 mtgch 精确端点；有原生卡图弹层，浮窗锚定弹层摆放在其右侧（空间不足换左侧/上下） |
 | [MTGDecks.net](https://mtgdecks.net/) | 悬停卡名链接（`image` 属性）、卡图瓦片或瓦片下方卡名 | 从卡图 URL 解析系列码 + 编号；浮窗先右后左 |
-| [Scryfall](https://scryfall.com/) | 悬停卡页大图（`img.card`，alt 如 `Name (Set #Num)`）、卡名标题（`h1.card-text-title`）、列表链接 | 卡页 URL `/card/{set}/{num}/` 直接提供系列码 + 编号 |
+| [Scryfall](https://scryfall.com/) | 悬停卡页大图（`img.card`，alt 如 `Name (Set #Num)`）、卡名标题（`h1.card-text-title`）、搜索列表卡图/链接 | 支持 `/card/` 与 `/cards/` 链接，并从搜索卡图的外层链接提取系列码 + 编号；卡页 URL `/card/{set}/{num}/` 也直接提供身份 |
 | [EDHREC](https://edhrec.com/) | 悬停卡名链接（`/cards/{slug}`）、卡图（`card-images.edhrec.com`）、卡页标题、**文章内嵌卡名**（`Card_name__*` 与 `fake-link`） | — |
 | [Moxfield](https://moxfield.com/) | 悬停牌组列表卡名（`a.table-deck-row-link`）或卡图（`assets.moxfield.net/cards`） | 浮窗**跟随鼠标**，优先鼠标右侧、空间不足换左侧 |
 | [MTGTop8](https://www.mtgtop8.com/) | 悬停牌组列表行（`.deck_line` / `AffCard(V)` 行） | 从 `AffCard(V)` 参数解析系列码 + 编号（带数字系列码如 MH2 靠 mtgch 名字门禁兜底） |

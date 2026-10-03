@@ -1,6 +1,6 @@
 # HANDOFF — 万智牌中文悬浮翻译助手（manabrew-cn）
 
-> 交接文档。脚本当前版本 **v1.5.1**，支持 **8 个站点**。
+> 交接文档。脚本当前版本 **v1.5.2**，支持 **8 个站点**。
 > 最后更新：2026-10-03。数据库翻译源为 `data-2026-09-27`，MTGJSON 快照为 `2026-10-02`。
 
 ---
@@ -18,9 +18,9 @@
 | 站点 | 卡名检测 | 卡图检测 | 原生弹层锚定 | 身份(系列码+编号) |
 |---|---|---|---|---|
 | Manabrew | `data-card-preview` portal + React fiber（手牌/堆叠/封面） | Scryfall src 卡图 | — | fiber `identity` |
-| MTGGoldfish | `a[data-card-id]` | 纯卡图 `alt`（`cards.mtggoldfish.com/images/`，排除卡背） | `.popover-card.popover.show` | `data-card-id` `[SET]` + `/price/` href 编号 |
+| MTGGoldfish | `a[data-card-id]` | 纯卡图 `alt`（`cards.mtggoldfish.com/images/`，排除卡背） | `.popover-card.popover.show` | `data-card-id` `[SET]` + `/price/` href 编号，或卡图外层 `data-card-url` |
 | MTGDecks.net | `a[image]`、瓦片、瓦片下方卡名 | `img[src*="/img/card/"]` | — | 卡图 URL `{SET}/{num}` |
-| Scryfall | `h1.card-text-title`、`a[href*="/cards/"]` | `img.card`（alt `Name (Set #Num)`） | — | 卡页 URL `/card/{set}/{num}/` |
+| Scryfall | `h1.card-text-title`、`a[href*="/card/"]` | `img.card`（alt `Name (Set #Num)`） | — | 卡页 URL 或搜索卡图外层 `/card/{set}/{num}/` 链接 |
 | EDHREC | `/cards/{slug}` 链接、卡页标题、**文章内嵌卡名**（`span.Card_name__*`、`span.fake-link`） | `card-images.edhrec.com` | — | — |
 | Moxfield | `a.table-deck-row-link` | `assets.moxfield.net/cards`（排除 DFC Front/Back/Transform） | **无**（浮窗跟随鼠标） | — |
 | MTGTop8 | `.deck_line` / `AffCard(V)` 行 | — | — | `AffCard(V)` 参数（靠名字门禁兜底） |
@@ -42,6 +42,7 @@
 | `d520447` | v1.4.0 | Moxfield 跟随鼠标（修复 NaN 定位）；先右后左统一（MTGDecks 同）；EDHREC 文章内嵌卡名 |
 | `58b8121` | v1.4.1 | 修复 Scryfall 浮窗全透明（GM_addStyle + CSSOM 兜底，CSP 拦截 style）；EDHREC 文章卡名部分触发（`/commanders/` 链接 + `.edhrecp__link` 包装器匹配） |
 | 本次更新 | v1.5.1 | 样式设置窗口新增风味文字颜色和字号；设置预览与浮窗使用独立风味样式变量 |
+| 本次更新 | v1.5.2 | 修复 Scryfall 搜索卡图与 MTGGoldfish 纯卡图无法取得系列码/编号的问题，使这些路径也能按印刷版本补齐风味文字；支持带字母收藏编号 |
 
 **Greasy Fork**：591633 当前仍发布 v1.4.0；旧脚本 590313 已删除（redirect → 591633）。本次只提交并推送 GitHub，不更新 Greasy Fork。
 
@@ -79,11 +80,11 @@ dist/en2zhs.json.gz          # 提交的数据库（GitHub Raw 提供）
 
 - MTGTop8 视觉模式缩略图（`/metas_thumbs/`）无卡名，不支持（只有经典/visual 文本牌表）。
 - Moxfield / EDHREC / CubeCobra 无身份（系列码+编号）来源，未命中本地库时走模糊搜索。
-- Scryfall 多结果搜索列表页在部分浏览器渲染依赖 JS，检测逻辑已覆盖（`/cards/{set}/{num}/` 链接 + `img.card`）。
+- Scryfall 多结果搜索列表页在部分浏览器渲染依赖 JS，检测逻辑已覆盖（`/card/{set}/{num}/` 链接 + `img.card`）；带后缀收藏编号也会保留。
 - 更名后：任何仍安装旧名脚本的用户需重装（Tampermonkey 按名称+命名空间识别）。
 
 ---
 
 ## 八、发布通道
 
-GitHub Raw `main` 同时提供脚本与数据库。推送 `dist/en2zhs.json.gz` 后，脚本会在后续页面加载时按 ETag 更新浏览器 IndexedDB。Greasy Fork 591633 当前仍为 v1.4.0；本次提交只更新 GitHub，未发布 Greasy Fork。通过 Greasy Fork 安装的用户需在那里单独更新脚本，才能获得 1.5.1 的风味文字样式设置。
+GitHub Raw `main` 同时提供脚本与数据库。推送 `dist/en2zhs.json.gz` 后，脚本会在后续页面加载时按 ETag 更新浏览器 IndexedDB。Greasy Fork 591633 当前仍为 v1.4.0；本次提交只更新 GitHub，未发布 Greasy Fork。通过 Greasy Fork 安装的用户需在那里单独更新脚本，才能获得 1.5.2 的印刷身份解析修复。

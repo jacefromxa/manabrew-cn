@@ -3,7 +3,7 @@
 // @name:zh-CN   万智牌中文悬浮翻译助手
 // @name:en      MTG Chinese Hover Translation Assistant
 // @namespace    https://play.manabrew.app/
-// @version      1.5.1
+// @version      1.5.2
 // @description  在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8、CubeCobra 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、风味文字、费用、攻防（含 MTG 符号图标）。
 // @description:zh-CN 在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8、CubeCobra 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、风味文字、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
 // @description:en Show Simplified Chinese card info on hover for Manabrew, MTGGoldfish, MTGDecks.net, Scryfall, EDHREC, Moxfield, MTGTop8 and CubeCobra — name, type, rules text, flavor text, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
@@ -75,10 +75,13 @@
   //   manabrew    play.manabrew.app   — canvas game, cards surface via the
   //               [data-card-preview] portal + React fiber introspection
   //   mtggoldfish www.mtggoldfish.com — card names are
-  //               <a data-card-id="Name [SET]" href="/price/{set}/{num}/{slug}">
+  //               <a data-card-id="Name [SET]" href="/price/{set}/{num}/{slug}">;
+  //               card images may expose the same identity through a wrapping
+  //               price link or a nearby data-card-url marker
   //   mtgdecks    mtgdecks.net        — card names are
   //               <a href="/prices/…" image="/img/card/{SET}/{slug}-{num}.jpg">
-  //   scryfall    scryfall.com        — card page h1.card-text-title + img.card
+  //   scryfall    scryfall.com        — card page h1.card-text-title + img.card,
+  //               plus search-list card links and their images
   //   edhrec      edhrec.com          — <a href="/cards/{slug}"> + card-images CDN
   //   moxfield    moxfield.com        — a.table-deck-row-link + assets CDN,
   //               with a native hover preview panel (.deckview-image-wrapper)
@@ -1257,8 +1260,8 @@
   //       number from the /price/ href (feeds the exact mtgch endpoint).
   //     Pure-image displays (visual deck view / article tiles) are
   //     <a href="/price/…"><img alt="Name" src="cards.mtggoldfish.com/images/…"></a>
-  //     → name from the img alt; the UUID image URL carries no set/number, so
-  //       those hover as name-only (fuzzy search fallback).
+  //     → name from the img alt; identity is recovered from the enclosing
+  //       price link or data-card-url when the page exposes either one.
   //   mtgdecks:    <a href="/prices/{slug}" image="/img/card/{SET}/{slug}-{num}.jpg">
   //     → name = link text (or the inner img's alt); identity parsed from the
   //       image URL. Card tiles (staples/visual views) are <img … alt="Name"
@@ -1288,11 +1291,58 @@
       .replace(/<[^>]+>/g, ' ')
       .replace(/\[[^\]]*\]/g, ' ');
     for (var i = 0; i < 4; i++) {
-      var t = s.replace(/\s*\((?:F|FOIL|NONFOIL|\d+|[^()]*#\d+)\)\s*$/i, '');
+      var t = s.replace(/\s*\((?:F|FOIL|NONFOIL|\d+|[^()]*#\s*[0-9A-Za-z★*-]+)\)\s*$/i, '');
       if (t === s) break;
       s = t;
     }
     return s.replace(/\s+/g, ' ').trim();
+  }
+
+  // Card URLs carry a print identity even when the hovered element is the
+  // image inside the link. Accept both Scryfall's current singular /card/ form
+  // and the older /cards/ form, plus suffixed collector numbers such as 209a.
+  function parseScryfallIdentityFromHref(href) {
+    var m = String(href || '').match(/\/cards?\/([a-z0-9]{2,6})\/([^/?#]+)(?:\/|$)/i);
+    if (!m || !/\d/.test(m[2])) return null;
+    var number = m[2];
+    try { number = decodeURIComponent(number); } catch (_) {}
+    return { setCode: m[1].toUpperCase(), cardNumber: number };
+  }
+
+  function firstAncestorAnchor(el) {
+    var cur = el && el.parentElement;
+    for (var i = 0; cur && i < 12; i++, cur = cur.parentElement) {
+      if (cur.tagName === 'A' && cur.getAttribute('href')) return cur;
+    }
+    return null;
+  }
+
+  function firstAncestorCardUrl(el) {
+    var cur = el;
+    for (var i = 0; cur && i < 8; i++, cur = cur.parentElement) {
+      if (!cur.querySelector) continue;
+      var holder = cur.querySelector('[data-card-url]');
+      if (holder && holder.getAttribute('data-card-url')) return holder.getAttribute('data-card-url');
+    }
+    return null;
+  }
+
+  function parseGoldfishIdentity(cardId, href) {
+    var setM = String(cardId || '').match(/\[([A-Z0-9]{2,6})\]/i);
+    var numM = String(href || '').match(/\/price\/[^/]+\/([^/]+)(?:\/|$)/i);
+    if (!setM || !numM || !/\d/.test(numM[1])) return null;
+    var number = numM[1];
+    try { number = decodeURIComponent(number); } catch (_) {}
+    return { setCode: setM[1].toUpperCase(), cardNumber: number };
+  }
+
+  function goldfishImageIdentity(img) {
+    var alt = img && img.getAttribute ? img.getAttribute('alt') : '';
+    var anchor = firstAncestorAnchor(img);
+    var href = anchor && anchor.getAttribute('href');
+    var identity = parseGoldfishIdentity(alt, href);
+    if (identity) return identity;
+    return parseGoldfishIdentity(alt, firstAncestorCardUrl(img));
   }
 
   function mtggoldfishHit(el) {
@@ -1325,20 +1375,17 @@
             .trim();
         }
         if (!isValidCardName(name)) return null;
-        var setM = cardId.match(/\[([A-Z0-9]{2,6})\]/);
-        var numM = (el.getAttribute('href') || '').match(/\/price\/[^/]+\/(\d+)\//);
-        var identity = null;
-        if (setM && numM) identity = { setCode: setM[1], cardNumber: numM[1] };
+        var identity = parseGoldfishIdentity(cardId, el.getAttribute('href'));
         return { el: el, name: name, identity: identity };
       }
     }
 
-    // Pure card image: name from alt (cleaned); UUID image URLs expose no
-    // set/number, so these hover as name-only (fuzzy search fallback).
+    // Pure card image: the UUID image URL exposes no identity, so recover it
+    // from the enclosing price link or data-card-url when Goldfish provides it.
     if (!isMtggoldfishCardImage(el)) return null;
     var imgName = cleanCardName(el.getAttribute('alt'));
     if (!isValidCardName(imgName) || imgName === 'Generic Card Back') return null;
-    return { el: el, name: imgName, identity: null };
+    return { el: el, name: imgName, identity: goldfishImageIdentity(el) };
   }
 
   function mtgdecksIdentity(url) {
@@ -1390,12 +1437,10 @@
   // --- Scryfall ------------------------------------------------------------
   // Card pages: <h1 class="card-text-title">Name {cost}</h1> and a big
   // <img class="card …" alt="Name (Set #Num)"> from cards.scryfall.io. Search
-  // list rows are <a href="/cards/{set}/{num}/{slug}">Name</a>. The card page
+  // list rows are <a href="/card/{set}/{num}/{slug}">Name</a>. The card page
   // URL itself carries set + collector number → exact mtgch endpoint.
   function scryfallIdentity() {
-    var m = String(location.pathname || '').match(/^\/card\/([a-z0-9]{2,6})\/(\d+)\//);
-    if (!m) return null;
-    return { setCode: m[1].toUpperCase(), cardNumber: m[2] };
+    return parseScryfallIdentityFromHref(location.pathname || '');
   }
 
   function scryfallHit(el) {
@@ -1404,11 +1449,15 @@
     if (el.tagName === 'IMG' && /cards\.scryfall\.io/.test(el.src || '')) {
       name = cleanCardName(el.getAttribute('alt'));
       identity = scryfallIdentity();
+      if (!identity) {
+        var imageAnchor = firstAncestorAnchor(el);
+        identity = parseScryfallIdentityFromHref(imageAnchor && imageAnchor.getAttribute('href'));
+      }
     } else if (el.tagName === 'A') {
       var href = el.getAttribute('href') || '';
-      var cm = href.match(/\/cards\/([a-z0-9]{2,6})\/(\d+)\//);
+      var cm = parseScryfallIdentityFromHref(href);
       name = (el.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 60);
-      if (cm && isValidCardName(name)) identity = { setCode: cm[1].toUpperCase(), cardNumber: cm[2] };
+      if (cm && isValidCardName(name)) identity = cm;
     } else if (el.tagName === 'H1' && /card-text-title/.test(el.className || '')) {
       // "Spectral Sailor\n{U}" — take the first line, drop the trailing cost.
       name = String(el.textContent || '').split('\n')[0].trim();
@@ -2492,6 +2541,12 @@
     ensurePanel: ensurePanel,
     renderPanel: renderPanel,
     fetchScryfallCard: fetchScryfallCard,
+    parseScryfallIdentityFromHref: parseScryfallIdentityFromHref,
+    scryfallIdentity: scryfallIdentity,
+    parseGoldfishIdentity: parseGoldfishIdentity,
+    scryfallHit: scryfallHit,
+    mtggoldfishHit: mtggoldfishHit,
+    findSiteCard: findSiteCard,
     fetchDBResponse: fetchDBResponse,
     getCachedApiResult: getCachedApiResult,
     loadApiCache: loadApiCache,
@@ -2529,7 +2584,7 @@
     fetchAndLoadDB();
 
     updateMenuToggles();
-    LOG('v1.5.1 ready — ' + SITE + ': hover a card name or card image for the Simplified Chinese tooltip');
+    LOG('v1.5.2 ready — ' + SITE + ': hover a card name or card image for the Simplified Chinese tooltip');
   }
 
   if (document.readyState === 'loading') {

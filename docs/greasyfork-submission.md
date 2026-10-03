@@ -12,7 +12,7 @@
 | **名称 (Name)** | `万智牌中文悬浮翻译助手` |
 | **命名空间 (Namespace)** | `https://play.manabrew.app/` |
 | **简介 (Description / Synopsis)** | 在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8、CubeCobra 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、风味文字、费用、攻防（含 MTG 符号图标）。 |
-| **版本 (Version)** | `1.5.0` |
+| **版本 (Version)** | `1.5.2` |
 | **作者 (Author)** | `jacefromxa` |
 | **许可 (License)** | `GPL-3.0` |
 | **适用站点 (Match)** | `https://play.manabrew.app/*`、`https://www.mtggoldfish.com/*`、`https://mtggoldfish.com/*`、`https://www.mtgdecks.net/*`、`https://mtgdecks.net/*`、`https://scryfall.com/*`、`https://edhrec.com/*`、`https://moxfield.com/*`、`https://www.mtgtop8.com/*`、`https://mtgtop8.com/*`、`https://cubecobra.com/*` |
@@ -84,6 +84,7 @@ Tampermonkey / Violentmonkey 菜单 → **⚙ 样式设置**：
 
 ### 更新日志
 
+- **v1.5.2** — 修复 Scryfall 搜索卡图与 MTGGoldfish 纯卡图无法取得系列码/编号的问题；从外层卡牌链接或 `data-card-url` 恢复印刷身份，支持带字母收藏编号。
 - **v1.5.1** — 样式设置窗口新增风味文字颜色和字号；设置预览与浮窗使用相同的独立风味样式变量。
 - **v1.5.0** — 接入 mtgch 中文风味名 / 风味文字；本地卡按系列码 + 编号后台补齐；精确 API 缓存按印刷版本区分，避免同名重印牌串入错误风味文字；浮窗在规则文本下方以斜体显示风味文字。
 - **v1.4.1** — 修复两个问题：① **Scryfall 浮窗全透明**——其 CSP（style-src 无 unsafe-inline）拦截了普通 `<style>` 元素，导致 CSS 变量未定义、面板背景失效；改优先用 `GM_addStyle`（绕过页面 CSP）注入样式，并用 CSSOM 内联核心颜色兜底（实测面板恢复深色背景/浅色文字/边框）。② **EDHREC 文章卡名只能部分触发**——部分文章（如 Y'shtola 报道）的卡名链接是 `/commanders/{slug}` 而非 `/cards/{slug}`；改为匹配 `.edhrecp__link` 包装器内的任意相对路径卡名链接（含 commander），并支持悬停包装器本身；排除包装器内的外链价格锚点。实测 commander 链接与三种文章卡名形态全部触发。
