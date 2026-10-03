@@ -150,4 +150,28 @@ test("renderPanel shows a flavor section only when flavor text exists", () => {
   assert.ok(flavor);
   assert.match(flavor.innerHTML, /洞察未来/);
   assert.match(flavor.style.cssText, /font-style:italic/);
+  assert.match(flavor.style.cssText, /var\(--mbrw-flavor-color\)/);
+  assert.match(flavor.style.cssText, /var\(--mbrw-flavor-size\)/);
+});
+
+test("panel CSS exposes independent flavor color and size variables", () => {
+  const { hooks } = loadHooks();
+  const css = hooks.buildPanelCss({ flavorColor: "#f0c674", flavorSize: 15 });
+
+  assert.match(css, /--mbrw-flavor-color:#f0c674;/);
+  assert.match(css, /--mbrw-flavor-size:15px;/);
+});
+
+test("settings dialog includes a flavor text style row", () => {
+  const { hooks, body } = loadHooks();
+  hooks.openSettings();
+
+  const texts = [];
+  const walk = node => {
+    if (node.textContent) texts.push(node.textContent);
+    for (const child of node.children || []) walk(child);
+  };
+  walk(body);
+
+  assert.ok(texts.includes("风味文字"));
 });

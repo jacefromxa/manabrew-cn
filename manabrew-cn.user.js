@@ -3,7 +3,7 @@
 // @name:zh-CN   万智牌中文悬浮翻译助手
 // @name:en      MTG Chinese Hover Translation Assistant
 // @namespace    https://play.manabrew.app/
-// @version      1.5.0
+// @version      1.5.1
 // @description  在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8、CubeCobra 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、风味文字、费用、攻防（含 MTG 符号图标）。
 // @description:zh-CN 在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8、CubeCobra 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、风味文字、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
 // @description:en Show Simplified Chinese card info on hover for Manabrew, MTGGoldfish, MTGDecks.net, Scryfall, EDHREC, Moxfield, MTGTop8 and CubeCobra — name, type, rules text, flavor text, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
@@ -116,6 +116,8 @@
     typeSize: 12,
     textColor: '#d4d4d8',
     textSize: 13,
+    flavorColor: '#d4d4d8',
+    flavorSize: 13,
     ptColor: '#d4d4d8',
     ptSize: 12,
     sourceColor: '#52525b',
@@ -184,6 +186,8 @@
       '--mbrw-type-size:' + (vars.typeSize || 12) + 'px;' +
       '--mbrw-text-color:' + (vars.textColor || '#d4d4d8') + ';' +
       '--mbrw-text-size:' + (vars.textSize || 13) + 'px;' +
+      '--mbrw-flavor-color:' + (vars.flavorColor || '#d4d4d8') + ';' +
+      '--mbrw-flavor-size:' + (vars.flavorSize || 13) + 'px;' +
       '--mbrw-pt-color:' + (vars.ptColor || '#d4d4d8') + ';' +
       '--mbrw-pt-size:' + (vars.ptSize || 12) + 'px;' +
       '--mbrw-source-color:' + (vars.sourceColor || '#52525b') + ';' +
@@ -919,7 +923,7 @@
       }
       if (card.f) flavorHtml += renderRulesText(card.f);
       flavorEl.innerHTML = flavorHtml;
-      flavorEl.style.cssText = 'color:var(--mbrw-text-color);font-size:var(--mbrw-text-size);font-weight:400;line-height:1.5;margin-top:7px;font-style:italic;opacity:.86;white-space:pre-wrap';
+      flavorEl.style.cssText = 'color:var(--mbrw-flavor-color);font-size:var(--mbrw-flavor-size);font-weight:400;line-height:1.5;margin-top:7px;font-style:italic;opacity:.86;white-space:pre-wrap';
       panel.appendChild(flavorEl);
     }
 
@@ -2193,6 +2197,11 @@
     previewText.style.cssText = 'color:var(--mbrw-text-color);font-size:var(--mbrw-text-size);line-height:1.5;margin-top:4px;white-space:pre-wrap;';
     preview.appendChild(previewText);
 
+    var previewFlavor = doc.createElement('div');
+    previewFlavor.textContent = '洞察未来，方能掌握现在。';
+    previewFlavor.style.cssText = 'color:var(--mbrw-flavor-color);font-size:var(--mbrw-flavor-size);line-height:1.5;margin-top:7px;font-style:italic;opacity:.86;white-space:pre-wrap;';
+    preview.appendChild(previewFlavor);
+
     var previewPt = doc.createElement('div');
     previewPt.textContent = '3/3';
     previewPt.style.cssText = 'color:var(--mbrw-pt-color);font-size:var(--mbrw-pt-size);margin-top:4px;text-align:right;';
@@ -2323,6 +2332,7 @@
     var enNameFont = makeFontRow('英文卡名', settings.enNameColor, settings.enNameSize);
     var typeFont = makeFontRow('类别行', settings.typeColor, settings.typeSize);
     var textFont = makeFontRow('规则文本', settings.textColor, settings.textSize);
+    var flavorFont = makeFontRow('风味文字', settings.flavorColor, settings.flavorSize);
     var ptFont = makeFontRow('攻防', settings.ptColor, settings.ptSize);
     var sourceFont = makeFontRow('来源脚注', settings.sourceColor, settings.sourceSize);
 
@@ -2330,6 +2340,7 @@
     box.appendChild(enNameFont.row);
     box.appendChild(typeFont.row);
     box.appendChild(textFont.row);
+    box.appendChild(flavorFont.row);
     box.appendChild(ptFont.row);
     box.appendChild(sourceFont.row);
 
@@ -2360,6 +2371,8 @@
       out.typeSize = parseInt(typeFont.sizeField.input.value, 10);
       out.textColor = textFont.colorField.input.value;
       out.textSize = parseInt(textFont.sizeField.input.value, 10);
+      out.flavorColor = flavorFont.colorField.input.value;
+      out.flavorSize = parseInt(flavorFont.sizeField.input.value, 10);
       out.ptColor = ptFont.colorField.input.value;
       out.ptSize = parseInt(ptFont.sizeField.input.value, 10);
       out.sourceColor = sourceFont.colorField.input.value;
@@ -2472,6 +2485,8 @@
   // Test-only access to the pure network adapter; normal userscript runs do
   // not set this flag and therefore expose nothing on window.
   if (root.__MBRW_TESTING) root.__MBRW_TEST_HOOKS = {
+    buildPanelCss: buildPanelCss,
+    openSettings: openSettings,
     fetchExactCard: fetchExactCard,
     entryToCard: entryToCard,
     ensurePanel: ensurePanel,
@@ -2514,7 +2529,7 @@
     fetchAndLoadDB();
 
     updateMenuToggles();
-    LOG('v1.5.0 ready — ' + SITE + ': hover a card name or card image for the Simplified Chinese tooltip');
+    LOG('v1.5.1 ready — ' + SITE + ': hover a card name or card image for the Simplified Chinese tooltip');
   }
 
   if (document.readyState === 'loading') {

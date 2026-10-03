@@ -1,6 +1,6 @@
 # HANDOFF — 万智牌中文悬浮翻译助手（manabrew-cn）
 
-> 交接文档。脚本当前版本 **v1.5.0**，支持 **8 个站点**。
+> 交接文档。脚本当前版本 **v1.5.1**，支持 **8 个站点**。
 > 最后更新：2026-10-03。数据库翻译源为 `data-2026-09-27`，MTGJSON 快照为 `2026-10-02`。
 
 ---
@@ -41,7 +41,7 @@
 | `2307984` | v1.3.0 | CubeCobra 支持（卡名行/卡图/原生弹层锚定） |
 | `d520447` | v1.4.0 | Moxfield 跟随鼠标（修复 NaN 定位）；先右后左统一（MTGDecks 同）；EDHREC 文章内嵌卡名 |
 | `58b8121` | v1.4.1 | 修复 Scryfall 浮窗全透明（GM_addStyle + CSSOM 兜底，CSP 拦截 style）；EDHREC 文章卡名部分触发（`/commanders/` 链接 + `.edhrecp__link` 包装器匹配） |
-| 本次更新 | v1.5.0 | 接入 mtgch 中文风味名/风味文字；精确 API 缓存按系列码+编号区分印刷版本；浮窗显示风味文字 |
+| 本次更新 | v1.5.1 | 样式设置窗口新增风味文字颜色和字号；设置预览与浮窗使用独立风味样式变量 |
 
 **Greasy Fork**：591633 当前仍发布 v1.4.0；旧脚本 590313 已删除（redirect → 591633）。本次只提交并推送 GitHub，不更新 Greasy Fork。
 
@@ -86,4 +86,4 @@ dist/en2zhs.json.gz          # 提交的数据库（GitHub Raw 提供）
 
 ## 八、发布通道
 
-GitHub Raw `main` 同时提供脚本与数据库。推送 `dist/en2zhs.json.gz` 后，脚本会在后续页面加载时按 ETag 更新浏览器 IndexedDB。Greasy Fork 591633 当前仍为 v1.4.0；本次提交只更新 GitHub，未发布 Greasy Fork。通过 Greasy Fork 安装的用户需在那里单独更新脚本，才能获得 1.5.0 的风味文字支持。
+GitHub Raw `main` 同时提供脚本与数据库。推送 `dist/en2zhs.json.gz` 后，脚本会在后续页面加载时按 ETag 更新浏览器 IndexedDB。Greasy Fork 591633 当前仍为 v1.4.0；本次提交只更新 GitHub，未发布 Greasy Fork。通过 Greasy Fork 安装的用户需在那里单独更新脚本，才能获得 1.5.1 的风味文字样式设置。
