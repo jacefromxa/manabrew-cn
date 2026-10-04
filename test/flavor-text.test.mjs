@@ -116,6 +116,23 @@ test("exact mtgch results preserve translated flavor name and flavor text", asyn
   assert.ok(requests.includes("https://mtgch.com/api/v1/card/M21/59"));
 });
 
+test("API text fields convert escaped line breaks into real newlines", async () => {
+  const { hooks } = loadHooks({
+    name: "Opt",
+    atomic_translated_name: "抉择",
+    atomic_translated_text: "飞行\\n抓一张牌。",
+    atomic_translated_flavor_text: "先知一言。\\n后世铭记。",
+  });
+
+  const result = await hooks.fetchExactCard(
+    { setCode: "M21", cardNumber: "59" },
+    "Opt",
+  );
+
+  assert.equal(result.t, "飞行\n抓一张牌。");
+  assert.equal(result.f, "先知一言。\n后世铭记。");
+});
+
 test("local database entries carry flavor fields into display cards", () => {
   const { hooks } = loadHooks();
   const result = hooks.entryToCard({
@@ -152,6 +169,25 @@ test("renderPanel shows a flavor section only when flavor text exists", () => {
   assert.match(flavor.style.cssText, /font-style:italic/);
   assert.match(flavor.style.cssText, /var\(--mbrw-flavor-color\)/);
   assert.match(flavor.style.cssText, /var\(--mbrw-flavor-size\)/);
+});
+
+test("renderPanel converts escaped line breaks in cached card text", () => {
+  const { hooks, body } = loadHooks();
+  hooks.ensurePanel();
+  hooks.renderPanel({
+    n: "抉择",
+    t: "飞行\\n抓一张牌。",
+    f: "先知一言。\\n后世铭记。",
+    _src: "local+api",
+  }, "Opt");
+
+  const panel = body.children.find(child => child.id === "mbrw-cn-panel");
+  const rules = panel.children.find(child => child.className === "mbrw-rules");
+  const flavor = panel.children.find(child => child.className === "mbrw-flavor");
+  assert.equal(rules.innerHTML, "· 飞行\n· 抓一张牌。");
+  assert.equal(flavor.innerHTML, "先知一言。\n后世铭记。");
+  assert.doesNotMatch(rules.innerHTML, /\\\\n/);
+  assert.doesNotMatch(flavor.innerHTML, /\\\\n/);
 });
 
 test("panel CSS exposes independent flavor color and size variables", () => {

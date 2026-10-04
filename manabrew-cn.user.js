@@ -3,7 +3,7 @@
 // @name:zh-CN   万智牌中文悬浮翻译助手
 // @name:en      MTG Chinese Hover Translation Assistant
 // @namespace    https://play.manabrew.app/
-// @version      1.5.2
+// @version      1.5.3
 // @description  在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8、CubeCobra 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、风味文字、费用、攻防（含 MTG 符号图标）。
 // @description:zh-CN 在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8、CubeCobra 悬停万智牌卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、风味文字、费用（右上角）、攻防（右下角，*/* 形式），MTG 符号图标。
 // @description:en Show Simplified Chinese card info on hover for Manabrew, MTGGoldfish, MTGDecks.net, Scryfall, EDHREC, Moxfield, MTGTop8 and CubeCobra — name, type, rules text, flavor text, cost (top-right), P/T (bottom-right), and MTG mana-symbol icons.
@@ -523,6 +523,15 @@
     return set && num ? base + '@' + set + '/' + num : base;
   }
 
+  // mtgch responses can contain JSON-escaped line breaks as literal backslash
+  // characters ("\\n") after parsing. Normalize both one- and two-backslash
+  // forms before the text reaches the HTML renderer.
+  function normalizeCardText(text) {
+    return String(text == null ? '' : text)
+      .replace(/\\\\n/g, '\n')
+      .replace(/\\n/g, '\n');
+  }
+
   // One exact request to the deterministic /api/v1/card/{SET}/{CN} endpoint —
   // the same "set + collector number" lookup the Scryfall-zhs plugin uses.
   // Returns null when the print isn't found (mtgch 404s on suffixed numbers
@@ -543,10 +552,10 @@
         if (hLower && String(j.name).toLowerCase().trim() !== hLower) return null;
         return {
           n: j.atomic_translated_name || j.zhs_name || j.name,
-          t: j.atomic_translated_text || j.zhs_text || undefined,
-          y: j.atomic_translated_type || j.zhs_type_line || undefined,
-          fn: j.atomic_translated_flavor_name || j.zhs_flavor_name || undefined,
-          f: j.atomic_translated_flavor_text || j.zhs_flavor_text || undefined,
+          t: normalizeCardText(j.atomic_translated_text || j.zhs_text || '') || undefined,
+          y: normalizeCardText(j.atomic_translated_type || j.zhs_type_line || '') || undefined,
+          fn: normalizeCardText(j.atomic_translated_flavor_name || j.zhs_flavor_name || '') || undefined,
+          f: normalizeCardText(j.atomic_translated_flavor_text || j.zhs_flavor_text || '') || undefined,
           c: j.mana_cost || undefined,
           p: j.power != null ? j.power : undefined,
           q: j.toughness != null ? j.toughness : undefined,
@@ -659,10 +668,10 @@
             }
             return {
               n: exact.atomic_translated_name || exact.zhs_name || zhName || name,
-              t: exact.atomic_translated_text || exact.zhs_text || undefined,
-              y: exact.atomic_translated_type || exact.zhs_type_line || undefined,
-              fn: exact.atomic_translated_flavor_name || exact.zhs_flavor_name || undefined,
-              f: exact.atomic_translated_flavor_text || exact.zhs_flavor_text || undefined,
+              t: normalizeCardText(exact.atomic_translated_text || exact.zhs_text || '') || undefined,
+              y: normalizeCardText(exact.atomic_translated_type || exact.zhs_type_line || '') || undefined,
+              fn: normalizeCardText(exact.atomic_translated_flavor_name || exact.zhs_flavor_name || '') || undefined,
+              f: normalizeCardText(exact.atomic_translated_flavor_text || exact.zhs_flavor_text || '') || undefined,
               c: exact.mana_cost || undefined,
               p: exact.power || undefined,
               q: exact.toughness || undefined,
@@ -753,10 +762,10 @@
   // textless — no runtime API upgrade needed).
   function entryToCard(local, src) {
     var r = { n: local.n, _src: src };
-    if (local.t) r.t = local.t;
-    if (local.y) r.y = local.y;
-    if (local.fn) r.fn = local.fn;
-    if (local.f) r.f = local.f;
+    if (local.t) r.t = normalizeCardText(local.t);
+    if (local.y) r.y = normalizeCardText(local.y);
+    if (local.fn) r.fn = normalizeCardText(local.fn);
+    if (local.f) r.f = normalizeCardText(local.f);
     if (local.c) r.c = local.c;
     if (local.p) r.p = local.p;
     if (local.q) r.q = local.q;
@@ -865,7 +874,7 @@
   // --- Render --------------------------------------------------------------
 
   function prefixLines(text) {
-    return String(text || '').split('\n').map(function (line) {
+    return normalizeCardText(text).split('\n').map(function (line) {
       return line.trim() === '' ? line : '· ' + line;
     }).join('\n');
   }
@@ -922,7 +931,7 @@
       flavorEl.className = 'mbrw-flavor';
       var flavorHtml = '';
       if (card.fn) {
-        flavorHtml += '<div class="mbrw-flavor-name">' + escapeHtml(card.fn) + '</div>';
+        flavorHtml += '<div class="mbrw-flavor-name">' + escapeHtml(normalizeCardText(card.fn)) + '</div>';
       }
       if (card.f) flavorHtml += renderRulesText(card.f);
       flavorEl.innerHTML = flavorHtml;
@@ -986,7 +995,7 @@
   // = blue circle), so rules-text symbols get the same cost treatment as the
   // mana-cost row — which is also what a physical Magic card shows in its text.
   function renderRulesText(text) {
-    var esc = escapeHtml(text);
+    var esc = escapeHtml(normalizeCardText(text));
     return esc.replace(/\{[^}]+\}/g, function (m) {
       var cls = manaClass(m);
       return cls ? '<i class="ms ms-cost ' + cls + '"></i>' : m;
@@ -2584,7 +2593,7 @@
     fetchAndLoadDB();
 
     updateMenuToggles();
-    LOG('v1.5.2 ready — ' + SITE + ': hover a card name or card image for the Simplified Chinese tooltip');
+    LOG('v1.5.3 ready — ' + SITE + ': hover a card name or card image for the Simplified Chinese tooltip');
   }
 
   if (document.readyState === 'loading') {
