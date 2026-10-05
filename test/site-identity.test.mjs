@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
-const SCRIPT_PATH = fileURLToPath(new URL("../manabrew-cn.user.js", import.meta.url));
+const SCRIPT_PATH = fileURLToPath(new URL("../mtg-cn-browser.user.js", import.meta.url));
 const SCRIPT = readFileSync(SCRIPT_PATH, "utf8");
 
 function makeElement(tagName, attrs = {}) {
@@ -59,7 +59,7 @@ function loadHooks(hostname, pathname) {
     addEventListener() {},
   };
   const window = {
-    __MBRW_TESTING: true,
+    __MTG_CN_BROWSER_TESTING: true,
     innerWidth: 1280,
     innerHeight: 900,
     location: { hostname, pathname },
@@ -85,7 +85,7 @@ function loadHooks(hostname, pathname) {
     GM_xmlhttpRequest() {},
   };
   vm.runInNewContext(SCRIPT, context, { filename: SCRIPT_PATH });
-  return window.__MBRW_TEST_HOOKS;
+  return window.__MTG_CN_BROWSER_TEST_HOOKS;
 }
 
 test("Scryfall card images inherit identity from singular /card/ links on search pages", () => {

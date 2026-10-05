@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         万智牌中文悬浮翻译助手
 // @name:zh-CN   万智牌中文悬浮翻译助手
-// @name:en      MTG Chinese Hover Translation Assistant
+// @name:en      mtg-cn-browser
 // @namespace    https://play.manabrew.app/
 // @version      1.5.3
 // @description  在 Manabrew、MTGGoldfish、MTGDecks.net、Scryfall、EDHREC、Moxfield、MTGTop8、CubeCobra 悬停 MTG 卡牌时显示简体中文翻译浮窗——卡名、类别、规则文本、风味文字、费用、攻防（含 MTG 符号图标）。
@@ -24,8 +24,8 @@
 // @match        https://www.mtgtop8.com/*
 // @match        https://cubecobra.com/*
 // @run-at       document-idle
-// @updateURL    https://raw.githubusercontent.com/jacefromxa/manabrew-cn/main/manabrew-cn.user.js
-// @downloadURL  https://raw.githubusercontent.com/jacefromxa/manabrew-cn/main/manabrew-cn.user.js
+// @updateURL    https://raw.githubusercontent.com/jacefromxa/mtg-cn-browser/main/mtg-cn-browser.user.js
+// @downloadURL  https://raw.githubusercontent.com/jacefromxa/mtg-cn-browser/main/mtg-cn-browser.user.js
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
@@ -47,28 +47,30 @@
     try { console.warn.apply(console, ['[mtg-cn]'].concat(Array.prototype.slice.call(arguments))); } catch (_) {}
   };
   // Verbose fiber-introspection diagnostics. Flip on for debugging the hand /
-  // stack tooltips (v0.4.0 ships with it enabled; set window.__MBRW_DIAG=false
-  // or localStorage['mbrw-cn-diag']='0' to quiet the console).
+  // stack tooltips (v0.4.0 ships with it enabled; set
+  // window.__MTG_CN_BROWSER_DIAG=false or localStorage['mtg-cn-browser-diag']='0'
+  // to quiet the console).
   var DIAG = function () {
-    if (root.__MBRW_DIAG !== false) {
+    if (root.__MTG_CN_BROWSER_DIAG !== false && root.__MBRW_DIAG !== false) {
       try { console.log.apply(console, ['[mtg-cn:diag]'].concat(Array.prototype.slice.call(arguments))); } catch (_) {}
     }
   };
   try {
-    var diagPref = localStorage.getItem('mbrw-cn-diag');
-    if (diagPref === '0') root.__MBRW_DIAG = false;
+    var diagPref = localStorage.getItem('mtg-cn-browser-diag') || localStorage.getItem('mbrw-cn-diag');
+    if (diagPref === '0') root.__MTG_CN_BROWSER_DIAG = false;
   } catch (_) {}
 
-  var DATA_BASE = 'https://raw.githubusercontent.com/jacefromxa/manabrew-cn/main/dist';
-  var DB_MIRROR_URL = 'https://fastly.jsdelivr.net/gh/jacefromxa/manabrew-cn@main/dist/en2zhs.json.gz';
+  var DATA_BASE = 'https://raw.githubusercontent.com/jacefromxa/mtg-cn-browser/main/dist';
+  var DB_MIRROR_URL = 'https://fastly.jsdelivr.net/gh/jacefromxa/mtg-cn-browser@main/dist/en2zhs.json.gz';
   var MANA_CSS_URL = 'https://cdn.jsdelivr.net/npm/mana-font@1.18.0/css/mana.css';
-  // v0.9.2: bumped to mbrw-api3- — identity-aware exact-endpoint results should
+  // v0.9.2: bumped to mtg-cn-browser-api3- — identity-aware exact-endpoint results should
   // supersede any stale fuzzy name-only entries from before. v1.4.5 bumped this
   // again so name-only API results from before their expiry timestamp existed
   // are discarded once. v1.5.0 separates exact print caches so flavor text
-  // from one printing cannot leak into another. (v0.9.1 bumped mbrw-api- →
-  // mbrw-api2- for wrong-card name leakage.)
-  var API_CACHE_PREFIX = 'mbrw-api5-';
+  // from one printing cannot leak into another. (v0.9.1 bumped mtg-cn-browser-api- →
+  // mtg-cn-browser-api2- for wrong-card name leakage.)
+  var API_CACHE_PREFIX = 'mtg-cn-browser-api5-';
+  var LEGACY_API_CACHE_PREFIX = 'mbrw-api5-';
 
   // --- Site detection ------------------------------------------------------
   // The same hover-translation panel serves eight sites:
@@ -134,7 +136,8 @@
   function loadSettings() {
     try {
       if (typeof GM_getValue === 'function') {
-        var raw = GM_getValue('mbrw-cn-settings', null);
+        var raw = GM_getValue('mtg-cn-browser-settings', null);
+        if (!raw) raw = GM_getValue('mbrw-cn-settings', null);
         if (raw) {
           // 旧存档只有 bgOpacity/fontSize/panelMode 等字段——用默认值补齐
           // 新版本逐区块字段，避免出现 undefined 样式。
@@ -146,7 +149,7 @@
 
   function saveSettings() {
     try {
-      if (typeof GM_setValue === 'function') GM_setValue('mbrw-cn-settings', JSON.stringify(settings));
+      if (typeof GM_setValue === 'function') GM_setValue('mtg-cn-browser-settings', JSON.stringify(settings));
     } catch (_) {}
   }
 
@@ -177,32 +180,32 @@
 
   function buildPanelCss(vars) {
     return ':root {' +
-      '--mbrw-bg-color:' + (vars.bgColor || '26, 28, 33') + ';' +
-      '--mbrw-bg-opacity:' + (vars.bgOpacity != null ? vars.bgOpacity : 0.94) + ';' +
-      '--mbrw-border-color:' + (vars.borderColor || '255, 255, 255') + ';' +
-      '--mbrw-border-opacity:' + (vars.borderOpacity != null ? vars.borderOpacity : 0.18) + ';' +
-      '--mbrw-name-color:' + (vars.nameColor || '#ffad42') + ';' +
-      '--mbrw-name-size:' + (vars.nameSize || 15) + 'px;' +
-      '--mbrw-en-name-color:' + (vars.enNameColor || '#71717a') + ';' +
-      '--mbrw-en-name-size:' + (vars.enNameSize || 10) + 'px;' +
-      '--mbrw-type-color:' + (vars.typeColor || '#a1a1aa') + ';' +
-      '--mbrw-type-size:' + (vars.typeSize || 12) + 'px;' +
-      '--mbrw-text-color:' + (vars.textColor || '#d4d4d8') + ';' +
-      '--mbrw-text-size:' + (vars.textSize || 13) + 'px;' +
-      '--mbrw-flavor-color:' + (vars.flavorColor || '#d4d4d8') + ';' +
-      '--mbrw-flavor-size:' + (vars.flavorSize || 13) + 'px;' +
-      '--mbrw-pt-color:' + (vars.ptColor || '#d4d4d8') + ';' +
-      '--mbrw-pt-size:' + (vars.ptSize || 12) + 'px;' +
-      '--mbrw-source-color:' + (vars.sourceColor || '#52525b') + ';' +
-      '--mbrw-source-size:' + (vars.sourceSize || 9) + 'px;' +
+      '--mtg-cn-browser-bg-color:' + (vars.bgColor || '26, 28, 33') + ';' +
+      '--mtg-cn-browser-bg-opacity:' + (vars.bgOpacity != null ? vars.bgOpacity : 0.94) + ';' +
+      '--mtg-cn-browser-border-color:' + (vars.borderColor || '255, 255, 255') + ';' +
+      '--mtg-cn-browser-border-opacity:' + (vars.borderOpacity != null ? vars.borderOpacity : 0.18) + ';' +
+      '--mtg-cn-browser-name-color:' + (vars.nameColor || '#ffad42') + ';' +
+      '--mtg-cn-browser-name-size:' + (vars.nameSize || 15) + 'px;' +
+      '--mtg-cn-browser-en-name-color:' + (vars.enNameColor || '#71717a') + ';' +
+      '--mtg-cn-browser-en-name-size:' + (vars.enNameSize || 10) + 'px;' +
+      '--mtg-cn-browser-type-color:' + (vars.typeColor || '#a1a1aa') + ';' +
+      '--mtg-cn-browser-type-size:' + (vars.typeSize || 12) + 'px;' +
+      '--mtg-cn-browser-text-color:' + (vars.textColor || '#d4d4d8') + ';' +
+      '--mtg-cn-browser-text-size:' + (vars.textSize || 13) + 'px;' +
+      '--mtg-cn-browser-flavor-color:' + (vars.flavorColor || '#d4d4d8') + ';' +
+      '--mtg-cn-browser-flavor-size:' + (vars.flavorSize || 13) + 'px;' +
+      '--mtg-cn-browser-pt-color:' + (vars.ptColor || '#d4d4d8') + ';' +
+      '--mtg-cn-browser-pt-size:' + (vars.ptSize || 12) + 'px;' +
+      '--mtg-cn-browser-source-color:' + (vars.sourceColor || '#52525b') + ';' +
+      '--mtg-cn-browser-source-size:' + (vars.sourceSize || 9) + 'px;' +
       '}' +
-      '#mbrw-cn-panel::-webkit-scrollbar{width:4px}' +
-      '#mbrw-cn-panel::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:2px}' +
+      '#mtg-cn-browser-panel::-webkit-scrollbar{width:4px}' +
+      '#mtg-cn-browser-panel::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.15);border-radius:2px}' +
       // Mana-symbol glyphs (font provided by ensureManaCSS). Slight drop-shadow
       // keeps dark symbols (e.g. {B}) visible on the dark panel.
-      '#mbrw-cn-panel .ms{filter:drop-shadow(0 0 0.4px rgba(0,0,0,0.55));}' +
-      '#mbrw-cn-panel .mbrw-cost-row .ms{font-size:1.05em;vertical-align:middle;margin-right:2px;}' +
-      '#mbrw-cn-panel .mbrw-rules .ms{font-size:0.95em;vertical-align:middle;margin-right:1px;}';
+      '#mtg-cn-browser-panel .ms{filter:drop-shadow(0 0 0.4px rgba(0,0,0,0.55));}' +
+      '#mtg-cn-browser-panel .mtg-cn-browser-cost-row .ms{font-size:1.05em;vertical-align:middle;margin-right:2px;}' +
+      '#mtg-cn-browser-panel .mtg-cn-browser-rules .ms{font-size:0.95em;vertical-align:middle;margin-right:1px;}';
   }
 
   // 把所有可调样式写成 :root 上的 CSS 变量。浮窗面板与设置弹窗里的预览框
@@ -216,7 +219,7 @@
       try {
         if (!gmStyleEl || !document.body || !document.body.contains(gmStyleEl)) {
           gmStyleEl = GM_addStyle(css);
-          if (gmStyleEl && gmStyleEl.nodeType === 1) gmStyleEl.id = 'mbrw-cn-style';
+          if (gmStyleEl && gmStyleEl.nodeType === 1) gmStyleEl.id = 'mtg-cn-browser-style';
         } else {
           gmStyleEl.textContent = css;
         }
@@ -224,7 +227,7 @@
     } else {
       if (!styleTag) {
         styleTag = document.createElement('style');
-        styleTag.id = 'mbrw-cn-style';
+        styleTag.id = 'mtg-cn-browser-style';
         (document.head || document.documentElement).appendChild(styleTag);
       }
       styleTag.textContent = css;
@@ -257,9 +260,9 @@
   // browser-cached. Without it, .ms spans render empty but the tooltip still works.
   function ensureManaCSS() {
     try {
-      if (document.getElementById('mbrw-mana-css')) return;
+      if (document.getElementById('mtg-cn-browser-mana-css')) return;
       var link = document.createElement('link');
-      link.id = 'mbrw-mana-css';
+      link.id = 'mtg-cn-browser-mana-css';
       link.rel = 'stylesheet';
       link.href = MANA_CSS_URL;
       (document.head || document.documentElement).appendChild(link);
@@ -322,7 +325,7 @@
     try {
       if (typeof indexedDB === 'undefined') return Promise.reject(new Error('no indexedDB'));
       return new Promise(function (resolve, reject) {
-        var req = indexedDB.open('manabrew-cn', 1);
+        var req = indexedDB.open('mtg-cn-browser', 1);
         req.onupgradeneeded = function () { req.result.createObjectStore('data'); };
         req.onsuccess = function () { resolve(req.result); };
         req.onerror = function () { reject(req.error); };
@@ -403,7 +406,7 @@
 
     var DB_PATH;
     try {
-      DB_PATH = (localStorage.getItem('mbrw-cn-data-url') || '').trim() || (DATA_BASE + '/en2zhs.json.gz');
+      DB_PATH = (localStorage.getItem('mtg-cn-browser-data-url') || localStorage.getItem('mbrw-cn-data-url') || '').trim() || (DATA_BASE + '/en2zhs.json.gz');
     } catch (_) {
       DB_PATH = DATA_BASE + '/en2zhs.json.gz';
     }
@@ -493,7 +496,7 @@
 
   function loadApiCache() {
     try {
-      var raw = localStorage.getItem(API_CACHE_PREFIX + 'cache');
+      var raw = localStorage.getItem(API_CACHE_PREFIX + 'cache') || localStorage.getItem(LEGACY_API_CACHE_PREFIX + 'cache');
       if (raw) {
         var now = Date.now();
         var removedExpired = false;
@@ -787,8 +790,8 @@
   function ensurePanel() {
     if (panel && document.body.contains(panel)) return;
     panel = document.createElement('div');
-    panel.id = 'mbrw-cn-panel';
-    panel.style.cssText = 'position:fixed;left:0;top:0;z-index:2147483647;display:none;visibility:hidden;max-width:320px;max-height:50vh;overflow:auto;padding:9px 11px;border:1px solid rgba(var(--mbrw-border-color),var(--mbrw-border-opacity));border-radius:6px;background:rgba(var(--mbrw-bg-color),var(--mbrw-bg-opacity));color:var(--mbrw-text-color);box-shadow:0 4px 18px rgba(0,0,0,.45);pointer-events:none;font:13px/1.5 system-ui,-apple-system,sans-serif';
+    panel.id = 'mtg-cn-browser-panel';
+    panel.style.cssText = 'position:fixed;left:0;top:0;z-index:2147483647;display:none;visibility:hidden;max-width:320px;max-height:50vh;overflow:auto;padding:9px 11px;border:1px solid rgba(var(--mtg-cn-browser-border-color),var(--mtg-cn-browser-border-opacity));border-radius:6px;background:rgba(var(--mtg-cn-browser-bg-color),var(--mtg-cn-browser-bg-opacity));color:var(--mtg-cn-browser-text-color);box-shadow:0 4px 18px rgba(0,0,0,.45);pointer-events:none;font:13px/1.5 system-ui,-apple-system,sans-serif';
 
     dragHandle = document.createElement('div');
     dragHandle.textContent = '⠯ ⠯ ⠯';
@@ -892,50 +895,50 @@
     nameCol.style.cssText = 'min-width:0;flex:1';
     var nameEl = doc.createElement('div');
     nameEl.textContent = card.n;
-    nameEl.style.cssText = 'color:var(--mbrw-name-color);font-size:var(--mbrw-name-size);font-weight:700;line-height:1.25';
+    nameEl.style.cssText = 'color:var(--mtg-cn-browser-name-color);font-size:var(--mtg-cn-browser-name-size);font-weight:700;line-height:1.25';
     nameCol.appendChild(nameEl);
     header.appendChild(nameCol);
     if (card.c) {
       var costEl = doc.createElement('div');
-      costEl.className = 'mbrw-cost-row';
+      costEl.className = 'mtg-cn-browser-cost-row';
       costEl.innerHTML = manaHtml(card.c);
-      costEl.style.cssText = 'font-size:var(--mbrw-name-size);line-height:1.25;white-space:nowrap;margin-top:1px';
+      costEl.style.cssText = 'font-size:var(--mtg-cn-browser-name-size);line-height:1.25;white-space:nowrap;margin-top:1px';
       header.appendChild(costEl);
     }
     panel.appendChild(header);
 
     var enEl = doc.createElement('div');
     enEl.textContent = cardNameEn;
-    enEl.style.cssText = 'color:var(--mbrw-en-name-color);font-size:var(--mbrw-en-name-size);margin-top:2px';
+    enEl.style.cssText = 'color:var(--mtg-cn-browser-en-name-color);font-size:var(--mtg-cn-browser-en-name-size);margin-top:2px';
     panel.appendChild(enEl);
 
     if (card.y) {
       var typeEl = doc.createElement('div');
       typeEl.textContent = card.y;
-      typeEl.style.cssText = 'color:var(--mbrw-type-color);font-size:var(--mbrw-type-size);font-style:italic;font-weight:300;margin-top:3px';
+      typeEl.style.cssText = 'color:var(--mtg-cn-browser-type-color);font-size:var(--mtg-cn-browser-type-size);font-style:italic;font-weight:300;margin-top:3px';
       panel.appendChild(typeEl);
     }
 
     if (card.t) {
       var textEl = doc.createElement('div');
-      textEl.className = 'mbrw-rules';
+      textEl.className = 'mtg-cn-browser-rules';
       // Escape first, then substitute mana symbols with icon spans — the only
       // HTML that reaches innerHTML is the <i class="ms …"> we insert.
       textEl.innerHTML = renderRulesText(prefixLines(card.t));
-      textEl.style.cssText = 'color:var(--mbrw-text-color);font-size:var(--mbrw-text-size);font-weight:400;line-height:1.5;margin-top:6px;white-space:pre-wrap';
+      textEl.style.cssText = 'color:var(--mtg-cn-browser-text-color);font-size:var(--mtg-cn-browser-text-size);font-weight:400;line-height:1.5;margin-top:6px;white-space:pre-wrap';
       panel.appendChild(textEl);
     }
 
     if (card.fn || card.f) {
       var flavorEl = doc.createElement('div');
-      flavorEl.className = 'mbrw-flavor';
+      flavorEl.className = 'mtg-cn-browser-flavor';
       var flavorHtml = '';
       if (card.fn) {
-        flavorHtml += '<div class="mbrw-flavor-name">' + escapeHtml(normalizeCardText(card.fn)) + '</div>';
+        flavorHtml += '<div class="mtg-cn-browser-flavor-name">' + escapeHtml(normalizeCardText(card.fn)) + '</div>';
       }
       if (card.f) flavorHtml += renderRulesText(card.f);
       flavorEl.innerHTML = flavorHtml;
-      flavorEl.style.cssText = 'color:var(--mbrw-flavor-color);font-size:var(--mbrw-flavor-size);font-weight:400;line-height:1.5;margin-top:7px;font-style:italic;opacity:.86;white-space:pre-wrap';
+      flavorEl.style.cssText = 'color:var(--mtg-cn-browser-flavor-color);font-size:var(--mtg-cn-browser-flavor-size);font-weight:400;line-height:1.5;margin-top:7px;font-style:italic;opacity:.86;white-space:pre-wrap';
       panel.appendChild(flavorEl);
     }
 
@@ -943,15 +946,15 @@
     var ptHtml = cardPowerToughness(card);
     if (ptHtml) {
       var ptRow = doc.createElement('div');
-      ptRow.className = 'mbrw-pt-row';
+      ptRow.className = 'mtg-cn-browser-pt-row';
       ptRow.innerHTML = ptHtml;
-      ptRow.style.cssText = 'color:var(--mbrw-pt-color);font-size:var(--mbrw-pt-size);margin-top:6px;text-align:right;line-height:1.2';
+      ptRow.style.cssText = 'color:var(--mtg-cn-browser-pt-color);font-size:var(--mtg-cn-browser-pt-size);margin-top:6px;text-align:right;line-height:1.2';
       panel.appendChild(ptRow);
     }
 
     var srcEl = doc.createElement('div');
     srcEl.textContent = card._src === 'local' ? '📦 本地' : card._src === 'api' ? '🌐 mtgch' : card._src === 'scryfall' ? '🌐 Scryfall' : card._src === 'local+api' ? '📦+🌐' : card._src === 'local+scryfall' ? '📦+🌐 Scryfall' : '';
-    srcEl.style.cssText = 'color:var(--mbrw-source-color);font-size:var(--mbrw-source-size);margin-top:6px;text-align:right';
+    srcEl.style.cssText = 'color:var(--mtg-cn-browser-source-color);font-size:var(--mtg-cn-browser-source-size);margin-top:6px;text-align:right';
     panel.appendChild(srcEl);
   }
 
@@ -2202,12 +2205,12 @@
     var doc = document;
 
     settingsOverlay = doc.createElement('div');
-    settingsOverlay.id = 'mbrw-cn-settings-overlay';
+    settingsOverlay.id = 'mtg-cn-browser-settings-overlay';
     settingsOverlay.style.cssText = 'position:fixed;inset:0;z-index:2147483646;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center';
     settingsOverlay.addEventListener('click', function (e) { if (e.target === settingsOverlay) closeSettings(); });
 
     var box = doc.createElement('div');
-    box.id = 'mbrw-cn-settings-dialog';
+    box.id = 'mtg-cn-browser-settings-dialog';
     box.style.cssText = 'background:#1a1d24;color:#e0e0e0;border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:14px 16px;width:340px;max-width:calc(100vw - 20px);max-height:90vh;overflow-y:auto;font:13px/1.4 system-ui,sans-serif;box-shadow:0 8px 32px rgba(0,0,0,.5)';
     box.addEventListener('click', function (e) { e.stopPropagation(); });
 
@@ -2224,50 +2227,50 @@
     box.appendChild(previewLabel);
 
     var preview = doc.createElement('div');
-    preview.id = 'mbrw-cn-preview-box';
-    preview.style.cssText = 'margin-bottom:10px;padding:8px 10px;border-radius:6px;border:1px solid rgba(var(--mbrw-border-color),var(--mbrw-border-opacity));background:rgba(var(--mbrw-bg-color),var(--mbrw-bg-opacity));color:var(--mbrw-text-color);';
+    preview.id = 'mtg-cn-browser-preview-box';
+    preview.style.cssText = 'margin-bottom:10px;padding:8px 10px;border-radius:6px;border:1px solid rgba(var(--mtg-cn-browser-border-color),var(--mtg-cn-browser-border-opacity));background:rgba(var(--mtg-cn-browser-bg-color),var(--mtg-cn-browser-bg-opacity));color:var(--mtg-cn-browser-text-color);';
 
     var previewHeader = doc.createElement('div');
     previewHeader.style.cssText = 'display:flex;justify-content:space-between;align-items:flex-start;gap:10px;';
     var previewName = doc.createElement('div');
     previewName.textContent = '中文卡名';
-    previewName.style.cssText = 'min-width:0;flex:1;color:var(--mbrw-name-color);font-size:var(--mbrw-name-size);font-weight:700;line-height:1.25;';
+    previewName.style.cssText = 'min-width:0;flex:1;color:var(--mtg-cn-browser-name-color);font-size:var(--mtg-cn-browser-name-size);font-weight:700;line-height:1.25;';
     var previewCost = doc.createElement('div');
-    previewCost.className = 'mbrw-cost-row';
+    previewCost.className = 'mtg-cn-browser-cost-row';
     previewCost.innerHTML = manaHtml('{2}{W}{W}');
-    previewCost.style.cssText = 'font-size:var(--mbrw-name-size);line-height:1.25;white-space:nowrap;';
+    previewCost.style.cssText = 'font-size:var(--mtg-cn-browser-name-size);line-height:1.25;white-space:nowrap;';
     previewHeader.appendChild(previewName);
     previewHeader.appendChild(previewCost);
     preview.appendChild(previewHeader);
 
     var previewEn = doc.createElement('div');
     previewEn.textContent = 'English Card Name';
-    previewEn.style.cssText = 'color:var(--mbrw-en-name-color);font-size:var(--mbrw-en-name-size);margin-top:2px;';
+    previewEn.style.cssText = 'color:var(--mtg-cn-browser-en-name-color);font-size:var(--mtg-cn-browser-en-name-size);margin-top:2px;';
     preview.appendChild(previewEn);
 
     var previewType = doc.createElement('div');
     previewType.textContent = '生物 ～人类';
-    previewType.style.cssText = 'color:var(--mbrw-type-color);font-size:var(--mbrw-type-size);font-style:italic;font-weight:300;margin-top:3px;';
+    previewType.style.cssText = 'color:var(--mtg-cn-browser-type-color);font-size:var(--mtg-cn-browser-type-size);font-style:italic;font-weight:300;margin-top:3px;';
     preview.appendChild(previewType);
 
     var previewText = doc.createElement('div');
     previewText.textContent = '· 示例效果文本。';
-    previewText.style.cssText = 'color:var(--mbrw-text-color);font-size:var(--mbrw-text-size);line-height:1.5;margin-top:4px;white-space:pre-wrap;';
+    previewText.style.cssText = 'color:var(--mtg-cn-browser-text-color);font-size:var(--mtg-cn-browser-text-size);line-height:1.5;margin-top:4px;white-space:pre-wrap;';
     preview.appendChild(previewText);
 
     var previewFlavor = doc.createElement('div');
     previewFlavor.textContent = '洞察未来，方能掌握现在。';
-    previewFlavor.style.cssText = 'color:var(--mbrw-flavor-color);font-size:var(--mbrw-flavor-size);line-height:1.5;margin-top:7px;font-style:italic;opacity:.86;white-space:pre-wrap;';
+    previewFlavor.style.cssText = 'color:var(--mtg-cn-browser-flavor-color);font-size:var(--mtg-cn-browser-flavor-size);line-height:1.5;margin-top:7px;font-style:italic;opacity:.86;white-space:pre-wrap;';
     preview.appendChild(previewFlavor);
 
     var previewPt = doc.createElement('div');
     previewPt.textContent = '3/3';
-    previewPt.style.cssText = 'color:var(--mbrw-pt-color);font-size:var(--mbrw-pt-size);margin-top:4px;text-align:right;';
+    previewPt.style.cssText = 'color:var(--mtg-cn-browser-pt-color);font-size:var(--mtg-cn-browser-pt-size);margin-top:4px;text-align:right;';
     preview.appendChild(previewPt);
 
     var previewSrc = doc.createElement('div');
     previewSrc.textContent = '📦 本地';
-    previewSrc.style.cssText = 'color:var(--mbrw-source-color);font-size:var(--mbrw-source-size);margin-top:2px;text-align:right;';
+    previewSrc.style.cssText = 'color:var(--mtg-cn-browser-source-color);font-size:var(--mtg-cn-browser-source-size);margin-top:2px;text-align:right;';
     preview.appendChild(previewSrc);
 
     box.appendChild(preview);
@@ -2534,15 +2537,15 @@
         applyPanelMode();
         updateMenuToggles();
       },
-      'mbrw-cn-menu-pin',
+      'mtg-cn-browser-menu-pin',
       false
     );
-    registerMenuCommand('⚙ 样式设置', openSettings, 'mbrw-cn-menu-style');
+    registerMenuCommand('⚙ 样式设置', openSettings, 'mtg-cn-browser-menu-style');
   }
 
   // Test-only access to the pure network adapter; normal userscript runs do
   // not set this flag and therefore expose nothing on window.
-  if (root.__MBRW_TESTING) root.__MBRW_TEST_HOOKS = {
+  if (root.__MTG_CN_BROWSER_TESTING) root.__MTG_CN_BROWSER_TEST_HOOKS = {
     buildPanelCss: buildPanelCss,
     openSettings: openSettings,
     fetchExactCard: fetchExactCard,

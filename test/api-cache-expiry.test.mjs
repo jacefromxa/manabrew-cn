@@ -4,9 +4,9 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
-const SCRIPT_PATH = fileURLToPath(new URL("../manabrew-cn.user.js", import.meta.url));
+const SCRIPT_PATH = fileURLToPath(new URL("../mtg-cn-browser.user.js", import.meta.url));
 const SCRIPT = readFileSync(SCRIPT_PATH, "utf8");
-const CACHE_KEY = "mbrw-api5-cache";
+const CACHE_KEY = "mtg-cn-browser-api5-cache";
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function makeElement(tagName = "div") {
@@ -41,7 +41,7 @@ function loadHooks(initialStore, now) {
     addEventListener() {},
   };
   const window = {
-    __MBRW_TESTING: true,
+    __MTG_CN_BROWSER_TESTING: true,
     location: { hostname: "www.mtggoldfish.com" },
     addEventListener() {},
   };
@@ -70,7 +70,7 @@ function loadHooks(initialStore, now) {
   };
 
   vm.runInNewContext(SCRIPT, context, { filename: SCRIPT_PATH });
-  return { hooks: window.__MBRW_TEST_HOOKS, store, reads };
+  return { hooks: window.__MTG_CN_BROWSER_TEST_HOOKS, store, reads };
 }
 
 test("name-only API cache entries expire after seven days while translations stay cached", () => {

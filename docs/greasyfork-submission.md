@@ -16,8 +16,8 @@
 | **作者 (Author)** | `jacefromxa` |
 | **许可 (License)** | `GPL-3.0` |
 | **适用站点 (Match)** | `https://play.manabrew.app/*`、`https://www.mtggoldfish.com/*`、`https://mtggoldfish.com/*`、`https://www.mtgdecks.net/*`、`https://mtgdecks.net/*`、`https://scryfall.com/*`、`https://edhrec.com/*`、`https://moxfield.com/*`、`https://www.mtgtop8.com/*`、`https://mtgtop8.com/*`、`https://cubecobra.com/*` |
-| **主页 (Homepage)** | `https://github.com/jacefromxa/manabrew-cn` |
-| **安装地址 (Download URL)** | `https://raw.githubusercontent.com/jacefromxa/manabrew-cn/main/manabrew-cn.user.js` |
+| **主页 (Homepage)** | `https://github.com/jacefromxa/mtg-cn-browser` |
+| **安装地址 (Download URL)** | `https://raw.githubusercontent.com/jacefromxa/mtg-cn-browser/main/mtg-cn-browser.user.js` |
 | **更新地址 (Update URL)** | 同上（GitHub Raw 托管，Tampermonkey 可自动检查更新） |
 
 > 以上字段在脚本 `// ==UserScript==` 元数据头中已写好，上传脚本文件时 Greasy Fork 会自动读取。
@@ -79,7 +79,7 @@ Tampermonkey / Violentmonkey 菜单 → **⚙ 样式设置**：
 ### 常见问题
 
 - **浮窗不显示？** 确认脚本已在 Tampermonkey 中启用、页面为上述八个站点之一；按 F12 查看控制台 `[mtg-cn]` 日志定位原因。
-- **想关掉调试日志？** 控制台执行 `localStorage['mbrw-cn-diag']='0'`，或设置 `window.__MBRW_DIAG=false`。
+- **想关掉调试日志？** 控制台执行 `localStorage['mtg-cn-browser-diag']='0'`，或设置 `window.__MTG_CN_BROWSER_DIAG=false`。
 - **某张牌翻译缺失？** 属于本地库未收录的稀有卡，脚本会自动回退 API；若 API 也没有则显示英文原名（翻译暂缺）。
 
 ### 更新日志
@@ -117,5 +117,5 @@ Tampermonkey / Violentmonkey 菜单 → **⚙ 样式设置**：
 - [ ] 简介（Description）已填写，控制在 200 字内（Greasy Fork 简介区建议简短）
 - [ ] 详细说明已粘贴到「附加信息」栏
 - [ ] 主页填 GitHub 仓库地址
-- [ ] 上传 `manabrew-cn.user.js`（或填 GitHub Raw 安装地址，建议勾选「让 Greasy Fork 自动更新脚本」——脚本内已有 `@updateURL` / `@downloadURL` 指向 GitHub Raw，发布后每次 commit 推送即可让 Tampermonkey 自动拉新版）
+- [ ] 上传 `mtg-cn-browser.user.js`（或填 GitHub Raw 安装地址，建议勾选「让 Greasy Fork 自动更新脚本」——脚本内已有 `@updateURL` / `@downloadURL` 指向 GitHub Raw，发布后每次 commit 推送即可让 Tampermonkey 自动拉新版）
 - [ ] 提交后到脚本页把语言设为简体中文，方便中文用户检索

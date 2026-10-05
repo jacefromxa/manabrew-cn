@@ -1,4 +1,4 @@
-# HANDOFF — 万智牌中文悬浮翻译助手（manabrew-cn）
+# HANDOFF — 万智牌中文悬浮翻译助手（mtg-cn-browser）
 
 > 交接文档。脚本当前版本 **v1.5.3**，支持 **8 个站点**。
 > 最后更新：2026-10-03。数据库翻译源为 `data-2026-09-27`，MTGJSON 快照为 `2026-10-02`。
@@ -10,7 +10,7 @@
 油猴用户脚本：悬停 MTG 卡牌（卡名链接或卡图）时显示简体中文翻译浮窗——卡名、类别、规则文本、风味文字、费用（右上角）、攻防（*/*，含忠诚度/防御）、彩色 MTG 符号图标。本地数据库（37,082 卡，35,504 条规则文本）优先，mtgch.com API 精确端点回退；缺少规则或风味译文的 API 缓存 7 天后重查。跨站请求通过 `GM_xmlhttpRequest` 或页面 fetch 完成。
 
 - **脚本名**：`万智牌中文悬浮翻译助手`（`@namespace` 仍为 `https://play.manabrew.app/`）
-- **仓库**：`github.com/jacefromxa/manabrew-cn`（分支 `main`）
+- **仓库**：`github.com/jacefromxa/mtg-cn-browser`（分支 `main`）
 - **Greasy Fork**：`https://greasyfork.org/zh-CN/scripts/591633`（旧脚本 590313「Manabrew 简体中文卡牌浮窗」已于本会话删除并重定向到新脚本）
 
 ## 二、支持站点（8 个）与检测要点
@@ -50,7 +50,7 @@
 ## 四、仓库结构
 
 ```
-manabrew-cn.user.js          # 脚本本体（单文件，自包含）
+mtg-cn-browser.user.js       # 脚本本体（单文件，自包含）
 README.md                    # 使用文档（支持站点/安装/调试）
 HANDOFF.md                   # 本文档
 docs/
@@ -64,17 +64,17 @@ dist/en2zhs.json.gz          # 提交的数据库（GitHub Raw 提供）
 
 ## 五、发布流程（如何再次发布）
 
-1. **改代码** → `node --check manabrew-cn.user.js` 语法检查 → 按需 E2E（见下）。
-2. **验证**：`node --test test/*.test.mjs`、`node --check manabrew-cn.user.js`、`git diff --check`。
+1. **改代码** → `node --check mtg-cn-browser.user.js` 语法检查 → 按需 E2E（见下）。
+2. **验证**：`node --test test/*.test.mjs`、`node --check mtg-cn-browser.user.js`、`git diff --check`。
 3. **提交**：`git add ... && git commit`（版本号在 `@version` + 启动 LOG 里同步）。
 4. **推 GitHub**：`git push origin main`。数据库由脚本在页面打开时从 GitHub Raw 拉取，更新 `dist/en2zhs.json.gz` 后会按 ETag 替换浏览器 IndexedDB 缓存。
-5. **更新 Greasy Fork（单独发布）**：登录 greasyfork.org → 脚本 591633 → 「更新」→ 粘贴 `manabrew-cn.user.js` 全文 → 填 changelog → 发布。附加信息（描述）如需同步，编辑脚本附加信息（HTML 取自 `docs/greasyfork-description.html`）。
+5. **更新 Greasy Fork（单独发布）**：登录 greasyfork.org → 脚本 591633 → 「更新」→ 粘贴 `mtg-cn-browser.user.js` 全文 → 填 changelog → 发布。附加信息（描述）如需同步，编辑脚本附加信息（HTML 取自 `docs/greasyfork-description.html`）。
 
 ## 六、测试要点（真实浏览器）
 
 - **页面上下文注入**会受站点 CSP 影响：Scryfall 有严格 CSP（`connect-src` 不含 raw.githubusercontent/mtgch），页内 `<script>` 注入不执行、`fetch` 被拦。测试需用 `Page.addScriptToEvaluateOnNewDocument`（扩展级注入）或 Tampermonkey 沙箱。
-- **数据库**：新 origin 的 IndexedDB 为空，测试可预置种子数据（本会话做法：从 `dist/en2zhs.json.gz` 解压取若干条目写入 `manabrew-cn` IndexedDB）。
-- **多实例污染**：同一标签页多次 `addScriptToEvaluateOnNewDocument` 会产生多个脚本实例互相抢面板（`#mbrw-cn-panel` 重复、位置错乱）。测试务必用全新标签页/任务空间。
+- **数据库**：新 origin 的 IndexedDB 为空，测试可预置种子数据（本会话做法：从 `dist/en2zhs.json.gz` 解压取若干条目写入 `mtg-cn-browser` IndexedDB）。
+- **多实例污染**：同一标签页多次 `addScriptToEvaluateOnNewDocument` 会产生多个脚本实例互相抢面板（`#mtg-cn-browser-panel` 重复、位置错乱）。测试务必用全新标签页/任务空间。
 - 各站点 E2E 关注点：卡名/卡图悬停出中文、原生弹层锚定不遮挡、先右后左回退、moxfield 跟随鼠标。
 
 ## 七、已知限制

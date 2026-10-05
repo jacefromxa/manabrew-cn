@@ -35,7 +35,7 @@ async function fetchAll() {
       `https://api.scryfall.com/cards/search?q=${encodeURIComponent("is:token")}` +
       `&unique=cards&include_extras=true&page=${page}`;
     const resp = await fetch(url, {
-      headers: { "User-Agent": "manabrew-cn build script (https://github.com/jacefromxa/manabrew-cn)" },
+      headers: { "User-Agent": "mtg-cn-browser build script (https://github.com/jacefromxa/mtg-cn-browser)" },
     });
     if (!resp.ok) {
       console.error(`HTTP ${resp.status} — aborting at page ${page}`);

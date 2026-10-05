@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
-const SCRIPT_PATH = fileURLToPath(new URL("../manabrew-cn.user.js", import.meta.url));
+const SCRIPT_PATH = fileURLToPath(new URL("../mtg-cn-browser.user.js", import.meta.url));
 const SCRIPT = readFileSync(SCRIPT_PATH, "utf8");
 
 function makeElement(tagName = "div") {
@@ -59,7 +59,7 @@ function loadHooks(apiResponse = {}) {
     addEventListener() {},
   };
   const window = {
-    __MBRW_TESTING: true,
+    __MTG_CN_BROWSER_TESTING: true,
     innerWidth: 1280,
     innerHeight: 900,
     location: { hostname: "www.mtggoldfish.com" },
@@ -93,7 +93,7 @@ function loadHooks(apiResponse = {}) {
     },
   };
   vm.runInNewContext(SCRIPT, context, { filename: SCRIPT_PATH });
-  return { hooks: window.__MBRW_TEST_HOOKS, requests, body };
+  return { hooks: window.__MTG_CN_BROWSER_TEST_HOOKS, requests, body };
 }
 
 test("exact mtgch results preserve translated flavor name and flavor text", async () => {
@@ -162,13 +162,13 @@ test("renderPanel shows a flavor section only when flavor text exists", () => {
     _src: "local",
   }, "Opt");
 
-  const panel = body.children.find(child => child.id === "mbrw-cn-panel");
-  const flavor = panel.children.find(child => child.className === "mbrw-flavor");
+  const panel = body.children.find(child => child.id === "mtg-cn-browser-panel");
+  const flavor = panel.children.find(child => child.className === "mtg-cn-browser-flavor");
   assert.ok(flavor);
   assert.match(flavor.innerHTML, /洞察未来/);
   assert.match(flavor.style.cssText, /font-style:italic/);
-  assert.match(flavor.style.cssText, /var\(--mbrw-flavor-color\)/);
-  assert.match(flavor.style.cssText, /var\(--mbrw-flavor-size\)/);
+  assert.match(flavor.style.cssText, /var\(--mtg-cn-browser-flavor-color\)/);
+  assert.match(flavor.style.cssText, /var\(--mtg-cn-browser-flavor-size\)/);
 });
 
 test("renderPanel converts escaped line breaks in cached card text", () => {
@@ -181,9 +181,9 @@ test("renderPanel converts escaped line breaks in cached card text", () => {
     _src: "local+api",
   }, "Opt");
 
-  const panel = body.children.find(child => child.id === "mbrw-cn-panel");
-  const rules = panel.children.find(child => child.className === "mbrw-rules");
-  const flavor = panel.children.find(child => child.className === "mbrw-flavor");
+  const panel = body.children.find(child => child.id === "mtg-cn-browser-panel");
+  const rules = panel.children.find(child => child.className === "mtg-cn-browser-rules");
+  const flavor = panel.children.find(child => child.className === "mtg-cn-browser-flavor");
   assert.equal(rules.innerHTML, "· 飞行\n· 抓一张牌。");
   assert.equal(flavor.innerHTML, "先知一言。\n后世铭记。");
   assert.doesNotMatch(rules.innerHTML, /\\\\n/);
@@ -194,8 +194,8 @@ test("panel CSS exposes independent flavor color and size variables", () => {
   const { hooks } = loadHooks();
   const css = hooks.buildPanelCss({ flavorColor: "#f0c674", flavorSize: 15 });
 
-  assert.match(css, /--mbrw-flavor-color:#f0c674;/);
-  assert.match(css, /--mbrw-flavor-size:15px;/);
+  assert.match(css, /--mtg-cn-browser-flavor-color:#f0c674;/);
+  assert.match(css, /--mtg-cn-browser-flavor-size:15px;/);
 });
 
 test("settings dialog includes a flavor text style row", () => {

@@ -4,10 +4,10 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
-const SCRIPT_PATH = fileURLToPath(new URL("../manabrew-cn.user.js", import.meta.url));
+const SCRIPT_PATH = fileURLToPath(new URL("../mtg-cn-browser.user.js", import.meta.url));
 const SCRIPT = readFileSync(SCRIPT_PATH, "utf8");
-const PRIMARY_URL = "https://raw.githubusercontent.com/jacefromxa/manabrew-cn/main/dist/en2zhs.json.gz";
-const MIRROR_URL = "https://fastly.jsdelivr.net/gh/jacefromxa/manabrew-cn@main/dist/en2zhs.json.gz";
+const PRIMARY_URL = "https://raw.githubusercontent.com/jacefromxa/mtg-cn-browser/main/dist/en2zhs.json.gz";
+const MIRROR_URL = "https://fastly.jsdelivr.net/gh/jacefromxa/mtg-cn-browser@main/dist/en2zhs.json.gz";
 
 function makeElement(tagName = "div") {
   return {
@@ -40,7 +40,7 @@ function loadHooks() {
     addEventListener() {},
   };
   const window = {
-    __MBRW_TESTING: true,
+    __MTG_CN_BROWSER_TESTING: true,
     location: { hostname: "moxfield.com" },
     addEventListener() {},
   };
@@ -70,7 +70,7 @@ function loadHooks() {
   };
 
   vm.runInNewContext(SCRIPT, context, { filename: SCRIPT_PATH });
-  return { hooks: window.__MBRW_TEST_HOOKS, requests };
+  return { hooks: window.__MTG_CN_BROWSER_TEST_HOOKS, requests };
 }
 
 test("Moxfield retries the bundled translation DB through the CDN mirror", async () => {

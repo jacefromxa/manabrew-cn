@@ -1,4 +1,4 @@
-# 万智牌中文悬浮翻译助手（manabrew-cn）
+# 万智牌中文悬浮翻译助手（mtg-cn-browser）
 
 > 万智牌简体中文卡牌悬停翻译浮窗，支持 Manabrew / MTGGoldfish / MTGDecks.net / Scryfall / EDHREC / Moxfield / MTGTop8 / CubeCobra 八个站点
 
@@ -22,7 +22,7 @@
 ## 安装
 
 1. 安装 [Tampermonkey](https://www.tampermonkey.net/) 或 [Violentmonkey](https://violentmonkey.github.io/)
-2. 点击 [`manabrew-cn.user.js`](manabrew-cn.user.js) → 用户脚本管理器应提示安装
+2. 点击 [`mtg-cn-browser.user.js`](mtg-cn-browser.user.js) → 用户脚本管理器应提示安装
 3. 访问 https://play.manabrew.app/play/offline/constructed → 悬停战场/手牌/堆叠卡牌即可看到中文翻译；或访问 https://www.mtggoldfish.com/ 、https://mtgdecks.net/ 、https://scryfall.com/ 、https://edhrec.com/ 、https://moxfield.com/ 、https://www.mtgtop8.com/ 悬停任意卡名/卡图
 
 ## 数据来源
@@ -69,7 +69,7 @@ v0.6.0 默认开启 fiber 扫描诊断日志（`[mtg-cn:diag]`）。手牌/堆�
 - 牌组封面悬停解析：预览图 alt 是牌组名，脚本从 React fiber 的 `cover` prop 取封面卡名（主将），日志打印 `Deck cover → …`。
 - 牌组编辑器预览（v0.8.0）：manabrew 复用一个已挂载的 `data-card-preview`，卡牌切换时仅原地换图。脚本用 `live preview observer` 监听其内部变化（卡牌切换、图片晚到均触发），日志打印 `Preview card → …`。
 - MTGGoldfish / MTGDecks（v1.0.0）、Scryfall / EDHREC / Moxfield / MTGTop8（v1.1.0）：悬停卡名/卡图时日志打印 `Site card → 卡名 (SET/编号)`，未解析出身份时只打印卡名（走模糊搜索兜底）。
-- 控制台设 `localStorage['mbrw-cn-diag']='0'` 可关闭；`window.__MBRW_DIAG=true` 可重新开启。
+- 控制台设 `localStorage['mtg-cn-browser-diag']='0'` 可关闭；`window.__MTG_CN_BROWSER_DIAG=true` 可重新开启。
 
 ## 许可
 

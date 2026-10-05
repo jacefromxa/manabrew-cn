@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 
-const SCRIPT_PATH = fileURLToPath(new URL("../manabrew-cn.user.js", import.meta.url));
+const SCRIPT_PATH = fileURLToPath(new URL("../mtg-cn-browser.user.js", import.meta.url));
 const SCRIPT = readFileSync(SCRIPT_PATH, "utf8");
 
 function makeElement(tagName = "div") {
@@ -61,7 +61,7 @@ function loadHooks(scryfallCard) {
     setItem() {},
   };
   const window = {
-    __MBRW_TESTING: true,
+    __MTG_CN_BROWSER_TESTING: true,
     location: { hostname: "www.mtggoldfish.com" },
     innerWidth: 1280,
     innerHeight: 900,
@@ -102,7 +102,7 @@ function loadHooks(scryfallCard) {
     },
   };
   vm.runInNewContext(SCRIPT, context, { filename: SCRIPT_PATH });
-  return { hooks: window.__MBRW_TEST_HOOKS, requests };
+  return { hooks: window.__MTG_CN_BROWSER_TEST_HOOKS, requests };
 }
 
 test("Scryfall fallback resolves a card by set and collector number", async () => {
